@@ -1,0 +1,158 @@
+{
+  "id": "childhood-v1",
+  "question": "Why do humans remember childhood?",
+  "questionZh": "人類為什麼會記得童年？",
+  "answerPrefix": "Humans remember childhood because",
+  "seed": 72931,
+  "tokensAreIllustrative": true,
+  "probabilitiesAreIllustrative": true,
+  "inputTokens": [
+    { "id": "t01", "text": "Why" },
+    { "id": "t02", "text": " do" },
+    { "id": "t03", "text": " humans" },
+    { "id": "t04", "text": " remember" },
+    { "id": "t05", "text": " childhood" },
+    { "id": "t06", "text": "?" }
+  ],
+  "vectorNodes": [
+    { "id": "childhood", "label": "childhood", "position": [0, 0, 0], "selectable": false },
+    { "id": "emotion", "label": "emotion", "position": [-2.5, 1.2, 0.4], "selectable": true },
+    { "id": "family", "label": "family", "position": [-1.4, -1.5, 1.2], "selectable": true },
+    { "id": "identity", "label": "identity", "position": [1.8, 1.4, -0.5], "selectable": true },
+    { "id": "brain", "label": "brain", "position": [2.6, -0.6, 0.2], "selectable": true },
+    { "id": "experience", "label": "experience", "position": [0.2, -1.8, -1.1], "selectable": true },
+    { "id": "memory", "label": "memory", "position": [-0.7, 2.0, -1.3], "selectable": true },
+    { "id": "school", "label": "school", "position": [-2.2, -0.3, -1.6], "selectable": true },
+    { "id": "growth", "label": "growth", "position": [1.2, 0.2, 1.8], "selectable": true }
+  ],
+  "vectorPreviewMap": {
+    "emotion": "emotion",
+    "family": "family",
+    "identity": "identity",
+    "brain": "brain",
+    "experience": "experience",
+    "memory": "brain",
+    "school": "experience",
+    "growth": "experience"
+  },
+  "attentionOptions": [
+    { "id": "emotion", "label": "emotion", "labelZh": "情緒", "routeId": "emotion" },
+    { "id": "brain", "label": "brain", "labelZh": "認知", "routeId": "cognition" },
+    { "id": "experience", "label": "experience", "labelZh": "經驗", "routeId": "cognition" },
+    { "id": "identity", "label": "identity", "labelZh": "自我認同", "routeId": "identity" },
+    { "id": "family", "label": "family", "labelZh": "家庭關係", "routeId": "identity" }
+  ],
+  "routes": [
+    {
+      "id": "emotion",
+      "labelZh": "情緒觀點",
+      "round1": [
+        { "id": "emotional", "text": " emotional", "weight": 0.46 },
+        { "id": "meaningful", "text": " meaningful", "weight": 0.32 },
+        { "id": "vivid", "text": " vivid", "weight": 0.22 }
+      ],
+      "round2ByFirst": {
+        "emotional": [
+          { "id": "experiences", "text": " experiences", "weight": 0.48 },
+          { "id": "moments", "text": " moments", "weight": 0.32 },
+          { "id": "events", "text": " events", "weight": 0.2 }
+        ],
+        "meaningful": [
+          { "id": "experiences", "text": " experiences", "weight": 0.37 },
+          { "id": "moments", "text": " moments", "weight": 0.43 },
+          { "id": "events", "text": " events", "weight": 0.2 }
+        ],
+        "vivid": [
+          { "id": "experiences", "text": " experiences", "weight": 0.29 },
+          { "id": "moments", "text": " moments", "weight": 0.36 },
+          { "id": "events", "text": " events", "weight": 0.35 }
+        ]
+      },
+      "leadSuffix": " can connect the past with feelings that still matter in the present.",
+      "firstTailByFirst": {
+        "emotional": "This view focuses on the feelings associated with a memory, rather than treating the past as a neutral record.",
+        "meaningful": "This view focuses on why an experience matters to the person remembering it, not simply on when it happened.",
+        "vivid": "This view focuses on the details that feel especially present when someone returns to a memory."
+      },
+      "secondTailBySecond": {
+        "experiences": "The emphasis here is on what an experience means to someone now.",
+        "moments": "The emphasis here is on a small moment that carries personal meaning.",
+        "events": "The emphasis here is on an event and the feelings attached to it."
+      }
+    },
+    {
+      "id": "cognition",
+      "labelZh": "認知觀點",
+      "round1": [
+        { "id": "early", "text": " early", "weight": 0.42 },
+        { "id": "repeated", "text": " repeated", "weight": 0.35 },
+        { "id": "familiar", "text": " familiar", "weight": 0.23 }
+      ],
+      "round2ByFirst": {
+        "early": [
+          { "id": "experiences", "text": " experiences", "weight": 0.5 },
+          { "id": "events", "text": " events", "weight": 0.3 },
+          { "id": "routines", "text": " routines", "weight": 0.2 }
+        ],
+        "repeated": [
+          { "id": "experiences", "text": " experiences", "weight": 0.26 },
+          { "id": "events", "text": " events", "weight": 0.24 },
+          { "id": "routines", "text": " routines", "weight": 0.5 }
+        ],
+        "familiar": [
+          { "id": "experiences", "text": " experiences", "weight": 0.28 },
+          { "id": "events", "text": " events", "weight": 0.31 },
+          { "id": "routines", "text": " routines", "weight": 0.41 }
+        ]
+      },
+      "leadSuffix": " can give people a way to recognize change across time.",
+      "firstTailByFirst": {
+        "early": "This view uses early experience as a reference point for noticing what has changed and what still feels familiar.",
+        "repeated": "This view draws attention to repetition: a route to school, a recurring activity, or an everyday pattern.",
+        "familiar": "This view follows the contrast between something recognizable and something that feels new."
+      },
+      "secondTailBySecond": {
+        "experiences": "The emphasis here is on connections between one experience and another.",
+        "events": "The emphasis here is on relating particular events across time.",
+        "routines": "The emphasis here is on recurring activities rather than a single exceptional event."
+      }
+    },
+    {
+      "id": "identity",
+      "labelZh": "身分與關係觀點",
+      "round1": [
+        { "id": "personal", "text": " personal", "weight": 0.44 },
+        { "id": "shared", "text": " shared", "weight": 0.34 },
+        { "id": "formative", "text": " formative", "weight": 0.22 }
+      ],
+      "round2ByFirst": {
+        "personal": [
+          { "id": "experiences", "text": " experiences", "weight": 0.35 },
+          { "id": "stories", "text": " stories", "weight": 0.25 },
+          { "id": "memories", "text": " memories", "weight": 0.4 }
+        ],
+        "shared": [
+          { "id": "experiences", "text": " experiences", "weight": 0.24 },
+          { "id": "stories", "text": " stories", "weight": 0.46 },
+          { "id": "memories", "text": " memories", "weight": 0.3 }
+        ],
+        "formative": [
+          { "id": "experiences", "text": " experiences", "weight": 0.52 },
+          { "id": "stories", "text": " stories", "weight": 0.2 },
+          { "id": "memories", "text": " memories", "weight": 0.28 }
+        ]
+      },
+      "leadSuffix": " can become part of the way people describe who they are.",
+      "firstTailByFirst": {
+        "personal": "This view connects the past with an individual story: the people, places, and experiences someone considers their own.",
+        "shared": "This view connects the past with other people and with the stories they remember together.",
+        "formative": "This view connects the past with experiences someone sees as important to the person they are becoming."
+      },
+      "secondTailBySecond": {
+        "experiences": "The emphasis here is on an experience as part of a life story.",
+        "stories": "The emphasis here is on how a story gives shape to the past.",
+        "memories": "The emphasis here is on the meaning someone finds in a memory."
+      }
+    }
+  ]
+}
