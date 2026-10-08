@@ -6,12 +6,17 @@ import { createInitialState, experienceReducer, type ExperienceState } from "../
 const scenario = validateScenario(rawScenario);
 
 function predictionState(): ExperienceState {
-  return experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "prediction", routeId: "emotion", scenario });
+  return finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "prediction", routeId: "emotion", scenario }));
+}
+
+function finishEntry(state: ExperienceState): ExperienceState {
+  if (state.transitionId === null) return state;
+  return experienceReducer(state, { type: "TRANSITION_READY", transitionId: state.transitionId, meta: { runId: state.runId, sceneInstanceId: state.sceneInstanceId } });
 }
 
 describe("experience reducer guards", () => {
   it("requires a primary attention focus and clears downstream on change", () => {
-    let state: ExperienceState = { ...createInitialState(scenario.id), scene: "attention" };
+    let state: ExperienceState = { ...finishEntry(createInitialState(scenario.id)), scene: "attention" };
     expect(experienceReducer(state, { type: "ATTENTION_CONFIRM", scenario })).toBe(state);
     state = experienceReducer(state, { type: "ATTENTION_SET_PRIMARY", primaryId: "emotion", scenario });
     state = experienceReducer(state, { type: "ATTENTION_SET_SECONDARY", secondaryId: "family", scenario });
@@ -87,12 +92,12 @@ describe("experience reducer guards", () => {
   });
 
   it("uses the short restart transition for Summary while emergency reset invalidates it immediately", () => {
-    let state = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", routeId: "emotion", scenario });
+    let state = finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", routeId: "emotion", scenario }));
     state = experienceReducer(state, { type: "REQUEST_SUMMARY_RESTART" });
     expect(state).toMatchObject({ scene: "summary", scenePhase: "exiting", transitionMode: "restart", transitionVisualPhase: "locking" });
     const transitionId = state.transitionId!;
     const reset = experienceReducer(state, { type: "RESET_EXPERIENCE" });
-    expect(reset).toMatchObject({ scene: "input", scenePhase: "ready", transitionId: null, transitionMode: null, transitionVisualPhase: "idle" });
+    expect(reset).toMatchObject({ scene: "input", scenePhase: "entering", transitionMode: "entry", transitionVisualPhase: "blackHold" });
     const stale = experienceReducer(reset, { type: "TRANSITION_VISUAL_PHASE", phase: "coreReady", transitionId, meta: { runId: state.runId, sceneInstanceId: state.sceneInstanceId } });
     expect(stale).toBe(reset);
   });

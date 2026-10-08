@@ -41,6 +41,7 @@ export const TransferOrbOverlay = forwardRef<HTMLDivElement, Props>(function Tra
   const discardParticleCount = snapshot?.reducedMotion ? 5 : 12;
   return (
     <div className="transfer-overlay" aria-hidden="true" data-transition-snapshot={snapshot ? `${snapshot.from}-${snapshot.transitionId}` : undefined}>
+      <div className="stage-blackout" data-stage-blackout="true" />
       <div className="transfer-proxies">
         {retained.map((item, index) => (
           <i
@@ -70,6 +71,9 @@ export const TransferOrbOverlay = forwardRef<HTMLDivElement, Props>(function Tra
             />
           );
         }))}
+      </div>
+      <div className="entry-scatter-field">
+        {Array.from({ length: 36 }, (_, index) => <i key={index} className="entry-scatter-particle" data-entry-particle="true" />)}
       </div>
       <div ref={ref} className="transfer-orb" data-testid="transfer-orb"><span /></div>
     </div>

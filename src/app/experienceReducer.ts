@@ -13,6 +13,7 @@ export type PredictionPhase =
   | "complete";
 
 export type InputSource = "user" | "presenter" | "autoplay";
+export type GenerationLoopPhase = "context" | "predict" | "resolve" | "send" | "append" | "feedback" | "complete";
 
 export interface PredictionChoice {
   round: 1 | 2;
@@ -45,7 +46,9 @@ export interface ExperienceState {
     choices: PredictionChoice[];
   };
   generation: {
-    visibleChunkCount: number;
+    visibleCharacterCount: number;
+    stepIndex: number;
+    loopPhase: GenerationLoopPhase;
     complete: boolean;
   };
   settings: {
@@ -67,7 +70,9 @@ export type ExperienceAction =
   | { type: "PREDICTION_SELECT"; candidateId: string; text: string; scenario: ScenarioFixture }
   | { type: "REQUEST_PREDICTION_TRANSFER" }
   | { type: "PREDICTION_TRANSFER_SWAP"; transitionId: number; meta: GuardMeta; scenario: ScenarioFixture }
-  | { type: "GENERATION_TICK"; visibleChunkCount: number; meta: GuardMeta }
+  | { type: "GENERATION_SET_PHASE"; phase: GenerationLoopPhase; meta: GuardMeta }
+  | { type: "GENERATION_APPEND_STEP"; stepIndex: number; visibleCharacterCount: number; meta: GuardMeta }
+  | { type: "GENERATION_ADVANCE_STEP"; stepIndex: number; meta: GuardMeta }
   | { type: "GENERATION_COMPLETED"; meta: GuardMeta }
   | { type: "REQUEST_TRANSITION"; target: SceneId }
   | { type: "REQUEST_SUMMARY_RESTART" }
@@ -95,15 +100,15 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     runId: 1,
     sceneInstanceId: 1,
     scene: "input",
-    scenePhase: "ready",
-    transitionId: null,
-    transitionTarget: null,
-    transitionMode: null,
-    transitionVisualPhase: "idle",
+    scenePhase: "entering",
+    transitionId: 1001,
+    transitionTarget: "input",
+    transitionMode: "entry",
+    transitionVisualPhase: "blackHold",
     exploredConceptIds: [],
     attention: emptyAttention(),
     prediction: emptyPrediction(),
-    generation: { visibleChunkCount: 0, complete: false },
+    generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
     settings: { quality: "medium", reducedMotion, presenterOpen: false },
   };
 }
@@ -156,7 +161,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
           source: "user",
         },
         prediction: emptyPrediction(),
-        generation: { visibleChunkCount: 0, complete: false },
+        generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
       };
     }
     case "ATTENTION_SET_SECONDARY": {
@@ -171,7 +176,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         ...state,
         attention: { ...state.attention, confirmed: true },
         prediction: emptyPrediction(),
-        generation: { visibleChunkCount: 0, complete: false },
+        generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
       };
     case "PREDICTION_SET_PHASE":
       if (!validMeta(state, action.meta) || state.scene !== "prediction" || state.scenePhase !== "ready") return state;
@@ -208,7 +213,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
           ...state,
           sceneInstanceId: state.sceneInstanceId + 1,
           scenePhase: "entering",
-          transitionVisualPhase: "entering",
+          transitionVisualPhase: "blackSwap",
           prediction: { round: 2, phase: "arrival", pendingCandidateId: null, choices: [choice] },
         };
       }
@@ -217,17 +222,23 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         scene: "generation",
         sceneInstanceId: state.sceneInstanceId + 1,
         scenePhase: "entering",
-        transitionVisualPhase: "entering",
+        transitionVisualPhase: "blackSwap",
         prediction: { ...state.prediction, phase: "complete", pendingCandidateId: null, choices: [...state.prediction.choices, choice] },
-        generation: { visibleChunkCount: 0, complete: false },
+        generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
       };
     }
-    case "GENERATION_TICK":
+    case "GENERATION_SET_PHASE":
       if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete) return state;
-      return { ...state, generation: { ...state.generation, visibleChunkCount: Math.max(state.generation.visibleChunkCount, action.visibleChunkCount) } };
+      return { ...state, generation: { ...state.generation, loopPhase: action.phase } };
+    case "GENERATION_APPEND_STEP":
+      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete || action.stepIndex !== state.generation.stepIndex) return state;
+      return { ...state, generation: { ...state.generation, loopPhase: "append", visibleCharacterCount: Math.max(state.generation.visibleCharacterCount, action.visibleCharacterCount) } };
+    case "GENERATION_ADVANCE_STEP":
+      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete || action.stepIndex !== state.generation.stepIndex + 1) return state;
+      return { ...state, generation: { ...state.generation, stepIndex: action.stepIndex, loopPhase: "context" } };
     case "GENERATION_COMPLETED":
       if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready") return state;
-      return { ...state, generation: { ...state.generation, complete: true } };
+      return { ...state, generation: { ...state.generation, loopPhase: "complete", complete: true } };
     case "REQUEST_TRANSITION":
       if (state.scenePhase !== "ready" || state.transitionId !== null || action.target === state.scene) return state;
       return {
@@ -253,13 +264,15 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...state, transitionVisualPhase: action.phase };
     case "TRANSITION_SWAP":
       if (!validMeta(state, action.meta) || state.transitionMode !== "scene" || state.transitionId !== action.transitionId || state.transitionTarget !== action.target || state.scenePhase !== "exiting") return state;
-      return { ...state, scene: action.target, sceneInstanceId: state.sceneInstanceId + 1, scenePhase: "entering", transitionVisualPhase: "entering" };
+      return { ...state, scene: action.target, sceneInstanceId: state.sceneInstanceId + 1, scenePhase: "entering", transitionVisualPhase: "blackSwap" };
     case "TRANSITION_READY":
       if (state.runId !== action.meta.runId || state.sceneInstanceId !== action.meta.sceneInstanceId || state.transitionId !== action.transitionId || state.scenePhase !== "entering") return state;
       return { ...state, scenePhase: "ready", transitionId: null, transitionTarget: null, transitionMode: null, transitionVisualPhase: "idle" };
     case "RESET_EXPERIENCE": {
       const fresh = createInitialState(state.scenarioId, state.settings.reducedMotion);
-      return { ...fresh, runId: state.runId + 1, sceneInstanceId: state.sceneInstanceId + 1, settings: { ...state.settings, presenterOpen: false } };
+      const runId = state.runId + 1;
+      const sceneInstanceId = state.sceneInstanceId + 1;
+      return { ...fresh, runId, sceneInstanceId, transitionId: runId * 1000 + sceneInstanceId, settings: { ...state.settings, presenterOpen: false } };
     }
     case "LOAD_PRESENTER_FIXTURE": {
       const fixture = presenterFixtures[action.routeId];
@@ -276,11 +289,11 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         runId: state.runId + 1,
         sceneInstanceId: state.sceneInstanceId + 1,
         scene: action.scene,
-        scenePhase: "ready",
-        transitionId: null,
-        transitionTarget: null,
-        transitionMode: null,
-        transitionVisualPhase: "idle",
+        scenePhase: "entering",
+        transitionId: (state.runId + 1) * 1000 + state.sceneInstanceId + 1,
+        transitionTarget: action.scene,
+        transitionMode: "entry",
+        transitionVisualPhase: "blackHold",
         exploredConceptIds: [],
         attention: needsAttention
           ? { primaryId: fixture.primaryId, secondaryId: null, confirmed: true, source: "presenter" }
@@ -289,7 +302,9 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
           ? { round: 2, phase: "complete", pendingCandidateId: null, choices }
           : emptyPrediction(),
         generation: {
-          visibleChunkCount: action.scene === "output" || action.scene === "summary" ? Number.MAX_SAFE_INTEGER : 0,
+          visibleCharacterCount: action.scene === "output" || action.scene === "summary" ? Number.MAX_SAFE_INTEGER : 0,
+          stepIndex: 0,
+          loopPhase: action.scene === "output" || action.scene === "summary" ? "complete" : "context",
           complete: action.scene === "output" || action.scene === "summary",
         },
         settings: { ...state.settings, presenterOpen: false },
@@ -299,8 +314,10 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       let prediction = state.prediction;
       let generation = state.generation;
       if (state.scene === "prediction") prediction = emptyPrediction();
-      if (state.scene === "generation") generation = { visibleChunkCount: 0, complete: false };
-      return { ...state, runId: state.runId + 1, sceneInstanceId: state.sceneInstanceId + 1, scenePhase: "ready", transitionId: null, transitionTarget: null, transitionMode: null, transitionVisualPhase: "idle", prediction, generation, settings: { ...state.settings, presenterOpen: false } };
+      if (state.scene === "generation") generation = { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false };
+      const runId = state.runId + 1;
+      const sceneInstanceId = state.sceneInstanceId + 1;
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", prediction, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

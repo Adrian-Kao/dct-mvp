@@ -13,7 +13,7 @@ export function SummaryScene() {
   return (
     <div className="scene-shell summary-shell">
       <SceneHeading eyebrow="08 · YOUR PATH" title="What shaped this answer?" description="畫面互動與內容分支被分開記錄，不會把探索誤說成生成原因。" />
-      <article className="receipt" data-transition-item="true" data-transition-id="summary-receipt" data-transition-role="retained" data-transition-source="dom">
+      <article className="receipt" data-entry-target="true" data-entry-order="1" data-transition-item="true" data-transition-id="summary-receipt" data-transition-role="retained" data-transition-source="dom">
         <header>
           <span>BEFORE THE ANSWER</span><strong>PATH RECEIPT</strong><small>{presenterPath ? "演示預設路徑" : "本次互動路徑"}</small>
         </header>
@@ -33,7 +33,7 @@ export function SummaryScene() {
           <p>輔助焦點：影響光流與紀錄</p>
         </footer>
       </article>
-      <div className="scene-controls">
+      <div className="scene-controls" data-entry-target="true" data-entry-order="4">
         <span>紀錄只存在目前瀏覽器記憶體，不會上傳。</span>
         <button type="button" className="primary-button" onClick={() => dispatch({ type: "REQUEST_SUMMARY_RESTART" })}>重新體驗</button>
       </div>

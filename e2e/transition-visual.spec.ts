@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const evidenceRoot = "artifacts/transition-evidence";
+const evidenceRoot = "artifacts/integrated-upgrade/legacy-regression";
 
 async function capturePhase(page: Page, phase: string, filename: string, delayMs = 0) {
   const stage = page.locator("#stage-root");
@@ -102,7 +102,7 @@ test("Tokenization converges six local data dots into one central transfer orb b
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle");
   await expectRecordedCoreAtStageCenter(page);
   await expectRecordedRightExit(page);
-  await expectOrderedPhases(page, ["locking", "compacting", "converging", "coreReady", "exiting", "entering", "expanding", "idle"]);
+  await expectOrderedPhases(page, ["locking", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold", "expanding", "idle"]);
 });
 
 test("Prediction disperses unselected candidates and transfers one central core in both rounds", async ({ page }) => {
@@ -121,15 +121,15 @@ test("Prediction disperses unselected candidates and transfers one central core 
   await expect(page.locator(".prediction-prefix")).toContainText("emotional");
   await expectRecordedCoreAtStageCenter(page);
   await expectRecordedRightExit(page);
-  await expectOrderedPhases(page, ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "entering", "expanding", "idle"]);
+  await expectOrderedPhases(page, ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold", "expanding", "idle"]);
 
   await startPhaseLog(page);
   await page.getByRole("button", { name: /experiences/u }).click();
   await capturePhase(page, "resolvingChoice", "prediction-r2-01-unselected-dispersing.png", 340);
   await capturePhase(page, "converging", "prediction-r2-02-selected-converging.png");
   await expect.poll(async () => page.locator("#stage-root").getAttribute("data-transition-phase"), { timeout: 6_000 }).toBe("idle");
-  await expectPhaseScene(page, "expanding", /The system continues/u);
+  await expectPhaseScene(page, "expanding", /NOW WATCH IT REPEAT/u);
   await expectRecordedCoreAtStageCenter(page);
   await expectRecordedRightExit(page);
-  await expectOrderedPhases(page, ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "entering", "expanding", "idle"]);
+  await expectOrderedPhases(page, ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold", "expanding", "idle"]);
 });

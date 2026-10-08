@@ -17,7 +17,7 @@ interface Props {
 function transitionOpacity(role: "retained" | "discarded", phase: TransitionVisualPhase) {
   if (phase === "resolvingChoice") return role === "discarded" ? 0.08 : 1;
   if (phase === "compacting") return role === "retained" ? 0.12 : 0;
-  if (["converging", "coreReady", "exiting", "swapping"].includes(phase)) return 0;
+  if (["converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold"].includes(phase)) return 0;
   return 1;
 }
 

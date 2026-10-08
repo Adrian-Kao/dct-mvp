@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useExperience } from "./ExperienceProvider";
 import { selectCandidates } from "./selectors";
 import { StageFrame } from "../components/StageFrame";
@@ -24,6 +24,9 @@ export default function App() {
   const { state, dispatch, scenario } = useExperience();
   const [renderer2d, setRenderer2d] = useState(shouldUse2D);
   const candidates = useMemo(() => selectCandidates(state, scenario), [scenario, state]);
+  const handlePredictionAbsorbed = useCallback(() => {
+    dispatch({ type: "PREDICTION_SET_PHASE", phase: "awaitingChoice", meta: { runId: state.runId, sceneInstanceId: state.sceneInstanceId } });
+  }, [dispatch, state.runId, state.sceneInstanceId]);
   const scenes = {
     input: <InputScene key={state.sceneInstanceId} />,
     tokenization: <TokenizationScene key={state.sceneInstanceId} />,
@@ -43,6 +46,7 @@ export default function App() {
       candidates={candidates}
       onVectorToggle={(conceptId) => dispatch({ type: "VECTOR_TOGGLE", conceptId, scenario })}
       onContextLost={() => setRenderer2d(true)}
+      onPredictionAbsorbed={handlePredictionAbsorbed}
     />
   );
   return (

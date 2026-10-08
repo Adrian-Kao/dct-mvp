@@ -5,6 +5,7 @@ test("complete reduced-motion 2D flow from simulated hold to personal summary", 
   await page.keyboard.press("d");
   await page.getByLabel("減少動態").check();
   await page.getByRole("button", { name: "關閉演示工具" }).click();
+  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle");
 
   const hold = page.getByRole("button", { name: "按住提問" });
   await hold.hover();

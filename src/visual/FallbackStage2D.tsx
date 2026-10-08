@@ -1,6 +1,5 @@
 import type { ExperienceState } from "../app/experienceReducer";
 import type { ChoiceFixture, ScenarioFixture } from "../data/scenarioTypes";
-import { candidateAnchors } from "./visualConfig";
 
 interface Props {
   state: ExperienceState;
@@ -9,9 +8,7 @@ interface Props {
 }
 
 export function FallbackStage2D({ state, scenario, candidates }: Props) {
-  const resolving = ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "swapping"].includes(state.transitionVisualPhase);
-  const converging = ["converging", "coreReady", "exiting", "swapping"].includes(state.transitionVisualPhase);
-  const selectedCandidateIndex = candidates.findIndex((candidate) => candidate.id === state.prediction.pendingCandidateId);
+  void candidates;
   return (
     <div className={`fallback-stage fallback-${state.scene}`} aria-hidden="true">
       <svg viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice">
@@ -35,39 +32,6 @@ export function FallbackStage2D({ state, scenario, candidates }: Props) {
           );
         })}
         {state.scene === "vector" && <circle cx="500" cy="300" r="9" className="fallback-vector-dot is-center" />}
-        {state.scene === "prediction" && Array.from({ length: state.settings.reducedMotion ? 70 : 180 }, (_, index) => {
-          const assigned = index % Math.max(1, candidates.length);
-          const target = candidateAnchors[assigned] ?? candidateAnchors[1];
-          const progress = state.prediction.phase === "awaitingChoice" || state.prediction.phase === "commit" ? 1 : 0.35;
-          const x = 40 + (target.x * 1000 - 40) * progress + Math.sin(index * 2.1) * 26;
-          const y = 300 + ((target.y - 0.5) * 600) * progress + Math.cos(index * 1.7) * 130 * (1 - progress);
-          const retained = assigned === selectedCandidateIndex;
-          const length = Math.max(1, Math.hypot(x - 500, y - 300));
-          const discardedX = ((x - 500) / length) * 440;
-          const discardedY = ((y - 300) / length) * 300;
-          const retainedX = 500 - x;
-          const retainedY = 300 - y;
-          const transform = resolving
-            ? retained
-              ? converging ? `translate(${retainedX}px, ${retainedY}px) scale(.12)` : "scale(.7)"
-              : `translate(${discardedX}px, ${discardedY}px) scale(.5)`
-            : "none";
-          return (
-            <circle
-              key={index}
-              cx={x}
-              cy={y}
-              r={index % 9 === 0 ? 4.8 : 2.1}
-              className={`fallback-particle ${retained ? "is-retained" : "is-discarded"}`}
-              style={{
-                animationDelay: `${-(index % 30) * 0.08}s`,
-                opacity: resolving && !retained ? 0 : converging && retained ? 0.08 : undefined,
-                transform,
-                transformOrigin: `${x}px ${y}px`,
-              }}
-            />
-          );
-        })}
       </svg>
     </div>
   );

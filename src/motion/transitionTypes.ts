@@ -10,11 +10,13 @@ export type TransitionVisualPhase =
   | "converging"
   | "coreReady"
   | "exiting"
-  | "swapping"
-  | "entering"
+  | "blackSwap"
+  | "blackHold"
+  | "enteringCore"
+  | "centerHold"
   | "expanding";
 
-export type TransitionMode = "scene" | "prediction" | "restart";
+export type TransitionMode = "scene" | "prediction" | "restart" | "entry";
 
 export interface TransitionSnapshotItem {
   id: string;

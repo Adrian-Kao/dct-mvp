@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // Motion evidence writes chronological frames; one browser worker keeps
+  // phase timing deterministic instead of competing for the animation clock.
+  workers: 1,
   timeout: 45_000,
   expect: { timeout: 8_000 },
   use: {

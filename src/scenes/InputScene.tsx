@@ -70,7 +70,7 @@ export function InputScene() {
   return (
     <div className="scene-shell input-shell">
       <SceneHeading eyebrow="01 · SEND A QUESTION" title="先把一個問題交給系統。" description="手機介面只播放預設互動；不錄音、不辨識，也不連線。" />
-      <div className={`phone-frame phase-${phase}`}>
+      <div className={`phone-frame phase-${phase}`} data-entry-target="true" data-entry-order="1">
         <div className="phone-speaker" />
         <div className="phone-screen">
           <p className="phone-brand">BEFORE THE ANSWER</p>
@@ -107,7 +107,7 @@ export function InputScene() {
           <p className="phone-privacy">演示輸入：不啟用麥克風</p>
         </div>
       </div>
-      <p className="interaction-hint" role="status">{message}</p>
+      <p className="interaction-hint" role="status" data-entry-target="true" data-entry-order="3">{message}</p>
     </div>
   );
 }

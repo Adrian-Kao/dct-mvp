@@ -13,9 +13,10 @@ interface Props {
   candidates: ChoiceFixture[];
   onVectorToggle: (id: string) => void;
   onContextLost: () => void;
+  onPredictionAbsorbed: () => void;
 }
 
-export function StageCanvas({ state, scenario, candidates, onVectorToggle, onContextLost }: Props) {
+export function StageCanvas({ state, scenario, candidates, onVectorToggle, onContextLost, onPredictionAbsorbed }: Props) {
   const quality = qualityConfig[state.settings.quality];
   return (
     <div className="stage-canvas" aria-hidden="true">
@@ -53,6 +54,7 @@ export function StageCanvas({ state, scenario, candidates, onVectorToggle, onCon
               seed={scenario.seed}
               reducedMotion={state.settings.reducedMotion}
               transitionPhase={state.transitionVisualPhase}
+              onAbsorbed={onPredictionAbsorbed}
             />
           )}
         </Suspense>

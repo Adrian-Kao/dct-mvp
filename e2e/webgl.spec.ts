@@ -18,7 +18,7 @@ test("WebGL mode keeps one canvas and renders the prediction influx locally", as
   await page.screenshot({ path: testInfo.outputPath("prediction-webgl-1366x768.png"), fullPage: true });
   await page.getByRole("button", { name: /emotional/u }).click();
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "converging", { timeout: 5_000 });
-  await page.screenshot({ path: "artifacts/transition-evidence/prediction-webgl-converging.png", animations: "allow" });
+  await page.screenshot({ path: "artifacts/integrated-upgrade/legacy-regression/prediction-webgl-converging.png", animations: "allow" });
   await expect(page.getByRole("button", { name: /experiences/u })).toBeEnabled({ timeout: 8_000 });
   await expect(page.locator("canvas")).toHaveCount(1);
   expect(externalRequests).toEqual([]);

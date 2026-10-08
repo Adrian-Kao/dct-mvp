@@ -21,8 +21,8 @@ export function TokenizationScene() {
   return (
     <div className={`scene-shell tokenization-shell token-phase-${phase}`}>
       <SceneHeading eyebrow="02 · FIXED SEGMENTATION" title="A sentence becomes visible units." description="這一站完全自動；查看任一片段不會改變後續。" />
-      <div className="token-workbench">
-        <p className="token-question">{scenario.question}</p>
+      <div className="token-workbench" data-entry-target="true" data-entry-order="1">
+        <p className="token-question" aria-hidden={phase >= 2}>{scenario.question}</p>
         <div className="scan-line" aria-hidden="true" />
         <div className="token-row" aria-label="六個固定示意文字單位">
           {scenario.inputTokens.map((token, index) => (
@@ -46,8 +46,8 @@ export function TokenizationScene() {
           ))}
         </div>
       </div>
-      <p className="scene-note">此處為固定切分示意，實際 tokenizer 的切分可能不同。</p>
-      <p className="interaction-hint">無需操作 · 系統將自動前往概念空間</p>
+      <p className="scene-note" data-entry-target="true" data-entry-order="3">此處為固定切分示意，實際 tokenizer 的切分可能不同。</p>
+      <p className="interaction-hint" data-entry-target="true" data-entry-order="4">無需操作 · 系統將自動前往概念空間</p>
     </div>
   );
 }

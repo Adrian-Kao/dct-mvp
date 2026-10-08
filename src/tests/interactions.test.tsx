@@ -1,20 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
 import App from "../app/App";
 import { ExperienceProvider } from "../app/ExperienceProvider";
 
 describe("core interactions", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/?renderer=2d");
-    vi.useFakeTimers();
   });
-  afterEach(() => vi.useRealTimers());
 
-  it("does not submit a short simulated hold", () => {
+  it("does not submit a short simulated hold", async () => {
     render(<ExperienceProvider><App /></ExperienceProvider>);
+    await waitFor(() => expect(document.getElementById("stage-root")).toHaveAttribute("data-transition-phase", "idle"), { timeout: 3000 });
     const button = screen.getByRole("button", { name: "按住提問" });
     fireEvent.pointerDown(button, { pointerId: 1 });
-    vi.advanceTimersByTime(300);
     fireEvent.pointerUp(button, { pointerId: 1 });
     expect(screen.getByText("按得太短了，請再按住一下。")).toBeInTheDocument();
     expect(screen.queryByText("YOUR QUESTION")).not.toBeInTheDocument();

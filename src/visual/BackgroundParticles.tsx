@@ -27,7 +27,7 @@ export function BackgroundParticles({ reducedMotion, active, transitionPhase }: 
   }, []);
   useFrame((_, delta) => {
     if (!points.current || !material.current || document.hidden) return;
-    const transitionActive = ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "swapping"].includes(transitionPhase);
+    const transitionActive = ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold"].includes(transitionPhase);
     material.current.opacity = THREE.MathUtils.lerp(material.current.opacity, active && !transitionActive ? 0.27 : 0, Math.min(1, delta * 5));
     if (active && !reducedMotion) {
       points.current.rotation.z += delta * 0.008;
