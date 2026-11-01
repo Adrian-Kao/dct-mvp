@@ -72,7 +72,7 @@ export function GenerationScene() {
   const progress = answer.remainingText.length ? visibleCount / answer.remainingText.length : 1;
   return (
     <div ref={scope} className="scene-shell generation-shell" data-loop-phase={state.generation.loopPhase} data-loop-step={state.generation.stepIndex}>
-      <SceneHeading eyebrow="06 · PREDICTION LOOP" title="NOW WATCH IT REPEAT." description={<>你剛才選出的內容，會成為接下來每一步的上下文。<small className="loop-disclaimer">固定文字片段的生成示意；不是即時模型運算。</small></>} />
+      <SceneHeading eyebrow="06 · PREDICTION LOOP" title="NOW WATCH IT REPEAT." />
       <div className="generation-loop-stage" ref={trackRef}>
         <section className="loop-engine" ref={engineRef} aria-label="固定資料循環引擎" data-entry-target="true" data-entry-order="1" data-transition-item="true" data-transition-id="generation-engine" data-transition-role="chrome" data-transition-source="dom">
           <div className="loop-context-core"><i /><span>CONTEXT</span></div>

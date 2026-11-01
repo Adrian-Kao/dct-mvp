@@ -52,7 +52,7 @@ export function AttentionScene() {
 
   return (
     <div className="scene-shell attention-shell">
-      <SceneHeading eyebrow="04 · DIRECT THE EMPHASIS" title={scenario.question} description="選一個主焦點；輔助焦點可以不選。其他資訊仍保留在畫面中。" />
+      <SceneHeading eyebrow="04 · DIRECT THE EMPHASIS" title={scenario.question} />
       <div ref={mapRef} className="attention-map" role="radiogroup" aria-label="主焦點" data-entry-target="true" data-entry-order="1">
         <svg viewBox={`0 0 ${geometry.width} ${geometry.height}`} preserveAspectRatio="none" aria-hidden="true" data-attention-width={geometry.width} data-attention-height={geometry.height}>
           {geometry.nodes.map((position, index) => {
@@ -83,16 +83,13 @@ export function AttentionScene() {
         })}
       </div>
       <div className="attention-bottom" data-entry-target="true" data-entry-order="3">
-        <div className="secondary-control">
-          <span>輔助焦點</span>
+        <div className="secondary-control" role="group" aria-label="輔助焦點">
           <button type="button" className={state.attention.secondaryId === null ? "is-active" : ""} onClick={() => dispatch({ type: "ATTENTION_SET_SECONDARY", secondaryId: null, scenario })}>不選擇</button>
           {scenario.attentionOptions.map((option) => (
             <button key={option.id} type="button" disabled={state.attention.primaryId === option.id} className={state.attention.secondaryId === option.id ? "is-active" : ""} onClick={() => dispatch({ type: "ATTENTION_SET_SECONDARY", secondaryId: option.id, scenario })}>{option.label}</button>
           ))}
         </div>
-        <p className="scene-note">前一站探索提示，不是已選焦點。主焦點會決定候選文字；輔助焦點只影響光流與紀錄。</p>
         <div className="scene-controls">
-          <span>{state.attention.primaryId ? `主焦點：${state.attention.primaryId}` : "請先選擇一個主焦點"}</span>
           <button type="button" className="primary-button" disabled={!state.attention.primaryId || state.scenePhase !== "ready"} onClick={() => dispatch({ type: "ATTENTION_CONFIRM", scenario })}>讓資訊繼續前進</button>
         </div>
       </div>

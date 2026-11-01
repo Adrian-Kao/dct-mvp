@@ -15,10 +15,8 @@ export function OutputScene() {
       </div>
       <article className="answer-card" data-entry-target="true" data-entry-order="2" data-transition-item="true" data-transition-id="output-answer" data-transition-role="retained" data-transition-source="dom" data-transition-slices="3">
         <p>{answer.fullAnswer}</p>
-        <small>藝術／教學示例回答 · {answer.answerId}</small>
       </article>
       <div className="scene-controls" data-entry-target="true" data-entry-order="4">
-        <span>特效已退去；回答不會再被改寫。</span>
         <button type="button" className="primary-button" onClick={() => dispatch({ type: "REQUEST_TRANSITION", target: "summary" })}>查看這次的路徑</button>
       </div>
     </div>

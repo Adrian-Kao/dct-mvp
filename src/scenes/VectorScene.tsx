@@ -15,7 +15,7 @@ export function VectorScene() {
   };
   return (
     <div className="scene-shell vector-shell">
-      <SceneHeading eyebrow="03 · CONCEPT SPACE" title="Explore distance, not a real embedding." description="固定的三維美術配置讓關聯變得可探索；選擇只留下提示與紀錄。" />
+      <SceneHeading eyebrow="03 · CONCEPT SPACE" title="Explore distance, not a real embedding." />
       <div className="vector-accessible-controls" aria-label="概念探索選項" data-entry-target="true" data-entry-order="2">
         {scenario.vectorNodes.filter((node) => node.selectable).map((node) => {
           const selected = state.exploredConceptIds.includes(node.id);
@@ -38,7 +38,6 @@ export function VectorScene() {
         {limitMessage && <p role="alert">最多選 2 個，請先取消其中一個。</p>}
       </div>
       <div className="scene-controls" data-entry-target="true" data-entry-order="4">
-        <span>拖曳空白區旋轉空間，選擇最多 2 個概念。</span>
         <button type="button" className="primary-button" onClick={() => dispatch({ type: "REQUEST_TRANSITION", target: "attention" })}>繼續到 Attention</button>
       </div>
     </div>

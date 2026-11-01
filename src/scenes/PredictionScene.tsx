@@ -96,7 +96,7 @@ export function PredictionScene() {
   };
   return (
     <div className={`scene-shell prediction-shell prediction-phase-${phase}`} data-round={state.prediction.round}>
-      <SceneHeading eyebrow={`05 · ROUND ${state.prediction.round} OF 2`} title="Possibilities gather before the next word." description="三個百分比是固定示意權重；每個選項都能完成一條合法回答。" />
+      <SceneHeading eyebrow={`05 · ROUND ${state.prediction.round} OF 2`} title="Possibilities gather before the next word." />
       <div className="prediction-prefix" aria-label="目前句子前綴" data-entry-target="true" data-entry-order="1">
         <span>CURRENT PREFIX</span>
         <p>{prefix}<i className="typing-caret" aria-hidden="true" /></p>
@@ -114,7 +114,6 @@ export function PredictionScene() {
       <div className="prediction-status" role="status" data-entry-target="true" data-entry-order="4">
         <span className="phase-pulse" aria-hidden="true" />
         <strong>{phaseLabel[phase]}</strong>
-        <small>{canChoose ? "點擊或使用鍵盤選擇任一文字；沒有正確答案。" : "候選吸收完所有資料後才會開放選擇。"}</small>
       </div>
     </div>
   );
