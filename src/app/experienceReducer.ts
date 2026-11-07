@@ -101,6 +101,11 @@ export function configureCards(enabled: boolean): void {
   cardsEnabled = enabled;
 }
 
+/** The intro card that covers a station from the moment it swaps in, so its screen never flashes first. */
+function introCard(scene: SceneId): StationCardState | null {
+  return cardsEnabled && CARD_SCENES.includes(scene) ? { kind: "intro", scene } : null;
+}
+
 export function configureForScenario(scenario: ScenarioFixture): void {
   predictedCount = scenario.prediction.rounds.length;
 }
@@ -149,7 +154,7 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     transitionMode: "entry",
     transitionVisualPhase: "blackHold",
     avatar: null,
-    card: null,
+    card: introCard("input"),
     vector: emptyVector(),
     prediction: emptyPrediction(),
     generation: emptyGeneration(),
@@ -226,7 +231,8 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       const card = state.card;
       if (!card) return state;
       const cleared = { ...state, card: null };
-      return card.kind === "outro" && card.target && state.scenePhase === "ready" ? startTransition(cleared, card.target) : cleared;
+      if (card.kind === "intro") return cleared;
+      return card.target && state.scenePhase === "ready" ? startTransition(cleared, card.target) : cleared;
     }
     case "REQUEST_SUMMARY_RESTART":
       if (state.scene !== "summary" || state.scenePhase !== "ready" || state.transitionId !== null) return state;
@@ -243,7 +249,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...state, transitionVisualPhase: action.phase };
     case "TRANSITION_SWAP":
       if (!validMeta(state, action.meta) || state.transitionMode !== "scene" || state.transitionId !== action.transitionId || state.transitionTarget !== action.target || state.scenePhase !== "exiting") return state;
-      return { ...state, scene: action.target, sceneInstanceId: state.sceneInstanceId + 1, scenePhase: "entering", transitionVisualPhase: "blackSwap" };
+      return { ...state, scene: action.target, sceneInstanceId: state.sceneInstanceId + 1, scenePhase: "entering", transitionVisualPhase: "blackSwap", card: introCard(action.target) };
     case "TRANSITION_READY":
       if (state.runId !== action.meta.runId || state.sceneInstanceId !== action.meta.sceneInstanceId || state.transitionId !== action.transitionId || state.scenePhase !== "entering") return state;
       return {
@@ -253,7 +259,6 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionTarget: null,
         transitionMode: null,
         transitionVisualPhase: "idle",
-        card: cardsEnabled && CARD_SCENES.includes(state.scene) ? { kind: "intro", scene: state.scene } : null,
       };
     case "RESET_EXPERIENCE": {
       const fresh = createInitialState(state.scenarioId, state.settings.reducedMotion);
@@ -274,7 +279,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionTarget: action.scene,
         transitionMode: "entry",
         transitionVisualPhase: "blackHold",
-        card: null,
+        card: introCard(action.scene),
         avatar: action.scene === "input" ? null : (state.avatar ?? buildDefaultAvatar()),
         vector: action.scene === "vector" || action.scene === "input" || action.scene === "tokenization" ? emptyVector() : completeVector(action.scenario),
         prediction: needsPrediction ? completePrediction(action.scenario, "presenter") : emptyPrediction("presenter"),
@@ -289,7 +294,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", card: null, avatar, vector, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", card: introCard(state.scene), avatar, vector, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

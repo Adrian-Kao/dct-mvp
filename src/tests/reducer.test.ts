@@ -118,7 +118,10 @@ describe("station title cards", () => {
 
   it("shows an intro card when a station is ready and holds the next station behind an outro card", () => {
     configureCards(true);
-    let state = finishEntry(createInitialState(scenario.id));
+    let state = createInitialState(scenario.id);
+    // The intro card is up before the station finishes entering, so its screen never shows first.
+    expect(state.card).toEqual({ kind: "intro", scene: "input" });
+    state = finishEntry(state);
     expect(state.card).toEqual({ kind: "intro", scene: "input" });
     state = experienceReducer(state, { type: "CARD_DONE" });
     expect(state.card).toBeNull();
@@ -130,6 +133,9 @@ describe("station title cards", () => {
     expect(state.card).toBeNull();
     expect(state.scenePhase).toBe("exiting");
     expect(state.transitionTarget).toBe("tokenization");
+    state = experienceReducer(state, { type: "TRANSITION_SWAP", target: "tokenization", transitionId: state.transitionId!, meta: metaOf(state) });
+    expect(state.scene).toBe("tokenization");
+    expect(state.card).toEqual({ kind: "intro", scene: "tokenization" });
   });
 
   it("has no cards on the summary and none when cards are off", () => {
