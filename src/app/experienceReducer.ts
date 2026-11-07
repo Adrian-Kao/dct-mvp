@@ -38,11 +38,23 @@ export interface ExperienceState {
     appendedCount: number;
     complete: boolean;
   };
+  /**
+   * The black title card shown when a station starts (intro) or after its "next" button (outro).
+   * While an outro is up the transition waits; it starts when the card is dismissed.
+   */
+  card: StationCardState | null;
   settings: {
     quality: "low" | "medium" | "high";
     reducedMotion: boolean;
     presenterOpen: boolean;
   };
+}
+
+export interface StationCardState {
+  kind: "intro" | "outro";
+  scene: SceneId;
+  /** Outro only: where the visitor goes next. */
+  target?: SceneId;
 }
 
 export interface PredictionPick {
@@ -66,6 +78,7 @@ export type ExperienceAction =
   | { type: "GENERATION_BUBBLE_POP"; index: number; scenario: ScenarioFixture; meta: GuardMeta }
   | { type: "REQUEST_TRANSITION"; target: SceneId }
   | { type: "REQUEST_SUMMARY_RESTART" }
+  | { type: "CARD_DONE" }
   | { type: "TRANSITION_VISUAL_PHASE"; phase: TransitionVisualPhase; transitionId: number; meta: GuardMeta }
   | { type: "TRANSITION_SWAP"; target: SceneId; transitionId: number; meta: GuardMeta }
   | { type: "TRANSITION_READY"; transitionId: number; meta: GuardMeta }
@@ -78,6 +91,15 @@ export type ExperienceAction =
 
 /** How many answer words station 3 draws; station 4's pump starts after them. Set once per scenario. */
 let predictedCount = 3;
+
+/** Scenes that get a black title card when they start and when they end. */
+const CARD_SCENES: SceneId[] = ["input", "tokenization", "vector", "attention", "generation", "output"];
+let cardsEnabled = false;
+
+/** Title cards are on in the exhibition and off by default (unit tests, browser automation). */
+export function configureCards(enabled: boolean): void {
+  cardsEnabled = enabled;
+}
 
 export function configureForScenario(scenario: ScenarioFixture): void {
   predictedCount = scenario.prediction.rounds.length;
@@ -127,10 +149,22 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     transitionMode: "entry",
     transitionVisualPhase: "blackHold",
     avatar: null,
+    card: null,
     vector: emptyVector(),
     prediction: emptyPrediction(),
     generation: emptyGeneration(),
     settings: { quality: "medium", reducedMotion, presenterOpen: false },
+  };
+}
+
+function startTransition(state: ExperienceState, target: SceneId): ExperienceState {
+  return {
+    ...state,
+    scenePhase: "exiting",
+    transitionId: state.sceneInstanceId + state.runId * 1000,
+    transitionTarget: target,
+    transitionMode: "scene",
+    transitionVisualPhase: "locking",
   };
 }
 
@@ -185,15 +219,15 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...state, generation: { ...state.generation, appendedCount, complete: appendedCount >= action.scenario.answer.tokens.length } };
     }
     case "REQUEST_TRANSITION":
-      if (state.scenePhase !== "ready" || state.transitionId !== null || action.target === state.scene) return state;
-      return {
-        ...state,
-        scenePhase: "exiting",
-        transitionId: state.sceneInstanceId + state.runId * 1000,
-        transitionTarget: action.target,
-        transitionMode: "scene",
-        transitionVisualPhase: "locking",
-      };
+      if (state.scenePhase !== "ready" || state.transitionId !== null || state.card !== null || action.target === state.scene) return state;
+      if (cardsEnabled && CARD_SCENES.includes(state.scene)) return { ...state, card: { kind: "outro", scene: state.scene, target: action.target } };
+      return startTransition(state, action.target);
+    case "CARD_DONE": {
+      const card = state.card;
+      if (!card) return state;
+      const cleared = { ...state, card: null };
+      return card.kind === "outro" && card.target && state.scenePhase === "ready" ? startTransition(cleared, card.target) : cleared;
+    }
     case "REQUEST_SUMMARY_RESTART":
       if (state.scene !== "summary" || state.scenePhase !== "ready" || state.transitionId !== null) return state;
       return {
@@ -212,7 +246,15 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...state, scene: action.target, sceneInstanceId: state.sceneInstanceId + 1, scenePhase: "entering", transitionVisualPhase: "blackSwap" };
     case "TRANSITION_READY":
       if (state.runId !== action.meta.runId || state.sceneInstanceId !== action.meta.sceneInstanceId || state.transitionId !== action.transitionId || state.scenePhase !== "entering") return state;
-      return { ...state, scenePhase: "ready", transitionId: null, transitionTarget: null, transitionMode: null, transitionVisualPhase: "idle" };
+      return {
+        ...state,
+        scenePhase: "ready",
+        transitionId: null,
+        transitionTarget: null,
+        transitionMode: null,
+        transitionVisualPhase: "idle",
+        card: cardsEnabled && CARD_SCENES.includes(state.scene) ? { kind: "intro", scene: state.scene } : null,
+      };
     case "RESET_EXPERIENCE": {
       const fresh = createInitialState(state.scenarioId, state.settings.reducedMotion);
       const runId = state.runId + 1;
@@ -232,6 +274,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionTarget: action.scene,
         transitionMode: "entry",
         transitionVisualPhase: "blackHold",
+        card: null,
         avatar: action.scene === "input" ? null : (state.avatar ?? buildDefaultAvatar()),
         vector: action.scene === "vector" || action.scene === "input" || action.scene === "tokenization" ? emptyVector() : completeVector(action.scenario),
         prediction: needsPrediction ? completePrediction(action.scenario, "presenter") : emptyPrediction("presenter"),
@@ -246,7 +289,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", avatar, vector, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", card: null, avatar, vector, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

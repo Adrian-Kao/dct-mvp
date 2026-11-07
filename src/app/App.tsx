@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useExperience } from "./ExperienceProvider";
 import { StageFrame } from "../components/StageFrame";
+import { StationCard } from "../components/StationCard";
 import { TransitionController } from "../motion/TransitionController";
 import { StageCanvas } from "../visual/StageCanvas";
 import { FallbackStage2D } from "../visual/FallbackStage2D";
@@ -39,8 +40,11 @@ export default function App() {
     />
   );
   return (
-    <StageFrame renderer2d={renderer2d} visual={visual} transfer={<TransitionController />}>
-      {scenes[state.scene]}
-    </StageFrame>
+    <>
+      <StageFrame renderer2d={renderer2d} visual={visual} transfer={<TransitionController />}>
+        {scenes[state.scene]}
+      </StageFrame>
+      <StationCard />
+    </>
   );
 }

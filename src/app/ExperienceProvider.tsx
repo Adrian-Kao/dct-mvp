@@ -1,11 +1,16 @@
 import { createContext, type Dispatch, type ReactNode, useContext, useMemo, useReducer } from "react";
 import { loadActiveScenario } from "../data/scenarioStore";
 import type { ScenarioFixture } from "../data/scenarioTypes";
-import { configureForScenario, createInitialState, experienceReducer, type ExperienceAction, type ExperienceState } from "./experienceReducer";
+import { configureCards, configureForScenario, createInitialState, experienceReducer, type ExperienceAction, type ExperienceState } from "./experienceReducer";
 
 /** The question the back office saved on this computer, or the built-in one. */
 const { scenario } = loadActiveScenario();
 configureForScenario(scenario);
+/** Title cards between stations: on for visitors, off under browser automation unless ?cards=on. */
+if (typeof window !== "undefined") {
+  const cards = new URLSearchParams(window.location.search).get("cards");
+  configureCards(cards ? cards !== "off" : !navigator.webdriver);
+}
 
 interface ExperienceContextValue {
   state: ExperienceState;

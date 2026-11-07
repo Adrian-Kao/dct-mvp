@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import rawScenario from "../data/scenario.json";
 import { validateScenario } from "../data/validateScenario";
-import { createInitialState, experienceReducer, type ExperienceState } from "../app/experienceReducer";
+import { configureCards, createInitialState, experienceReducer, type ExperienceState } from "../app/experienceReducer";
 import { selectAnswer, selectVisibleAnswer } from "../app/selectors";
 import { isAligned, nearestWords } from "../data/vectorSpace";
 
@@ -110,6 +110,34 @@ describe("station 4 pump generation", () => {
     expect(reset.scene).toBe("input");
     expect(reset.generation.pumpCount).toBe(0);
     expect(reset.prediction.picks).toEqual([]);
+  });
+});
+
+describe("station title cards", () => {
+  afterEach(() => configureCards(false));
+
+  it("shows an intro card when a station is ready and holds the next station behind an outro card", () => {
+    configureCards(true);
+    let state = finishEntry(createInitialState(scenario.id));
+    expect(state.card).toEqual({ kind: "intro", scene: "input" });
+    state = experienceReducer(state, { type: "CARD_DONE" });
+    expect(state.card).toBeNull();
+    state = experienceReducer(state, { type: "REQUEST_TRANSITION", target: "tokenization" });
+    expect(state.card).toEqual({ kind: "outro", scene: "input", target: "tokenization" });
+    expect(state.scenePhase).toBe("ready");
+    expect(experienceReducer(state, { type: "REQUEST_TRANSITION", target: "tokenization" })).toBe(state);
+    state = experienceReducer(state, { type: "CARD_DONE" });
+    expect(state.card).toBeNull();
+    expect(state.scenePhase).toBe("exiting");
+    expect(state.transitionTarget).toBe("tokenization");
+  });
+
+  it("has no cards on the summary and none when cards are off", () => {
+    configureCards(true);
+    const summary = finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", scenario }));
+    expect(summary.card).toBeNull();
+    configureCards(false);
+    expect(finishEntry(createInitialState(scenario.id)).card).toBeNull();
   });
 });
 
