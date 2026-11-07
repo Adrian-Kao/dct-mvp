@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("a mouse slash between 想 and 念 is overruled by the tokenizer's real cut", async ({ page }) => {
+test("a mouse slash only splits on a real tokenizer seam", async ({ page }) => {
   await page.goto("/?renderer=2d");
   await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   await page.keyboard.press("d");
@@ -18,13 +18,31 @@ test("a mouse slash between 想 and 念 is overruled by the tokenizer's real cut
   await expect(page.getByRole("status").filter({ hasText: "劈空了" })).toBeVisible();
   await expect(shell).toHaveAttribute("data-slice-cuts", "0");
 
-  // Slash straight down through the gap between 想 (index 5) and 念 (index 6).
-  const box = (await page.locator(".slice-sentence span[aria-hidden='true']").nth(5).boundingBox())!;
-  const x = box.x + box.width + 1;
-  await page.mouse.move(x, box.y - 80);
-  await page.mouse.down();
-  await page.mouse.move(x, box.y + box.height + 80, { steps: 8 });
-  await page.mouse.up();
+  const chars = page.locator(".slice-sentence span[aria-hidden='true']");
+  const swipeAt = async (x: number) => {
+    const box = (await chars.first().boundingBox())!;
+    await page.mouse.move(x, box.y - 80);
+    await page.mouse.down();
+    await page.mouse.move(x, box.y + box.height + 80, { steps: 8 });
+    await page.mouse.up();
+  };
+
+  // Between 想 and 念: same token, the blade bounces off.
+  const xiang = (await chars.nth(5).boundingBox())!;
+  const nian = (await chars.nth(6).boundingBox())!;
+  await swipeAt((xiang.x + xiang.width + nian.x) / 2);
+  await expect(page.getByRole("status")).toContainText("「想念」是同一塊 token");
+  await expect(shell).toHaveAttribute("data-slice-cuts", "0");
+
+  // Through the middle of 人: a character can't be split either.
+  const ren = (await chars.nth(3).boundingBox())!;
+  await swipeAt(ren.x + ren.width / 2);
+  await expect(page.getByRole("status")).toContainText("「人」字中間");
+  await expect(shell).toHaveAttribute("data-slice-cuts", "0");
+
+  // On the seam between 念 and 一: a real cut.
+  const yi = (await chars.nth(7).boundingBox())!;
+  await swipeAt((nian.x + nian.width + yi.x) / 2);
+  await expect(page.getByRole("status")).toContainText("切中了");
   await expect(shell).toHaveAttribute("data-slice-cuts", "1");
-  await expect(page.getByRole("status").filter({ hasText: "tokenizer 不切那裡" })).toContainText("「人會｜想念」");
 });

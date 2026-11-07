@@ -44,10 +44,48 @@ export function freedTokenIndexes(scenario: ScenarioFixture, done: number[]): nu
   return freed;
 }
 
-/** What to tell the visitor after a slash: did the blade land on a real cut, or did the tokenizer overrule them? */
-export function slashMessage(chars: string[], desired: number, actual: number): string {
-  const around = (offset: number) => `「${chars.slice(Math.max(0, offset - 2), offset).join("")}｜${chars.slice(offset, offset + 2).join("")}」`;
-  if (desired === actual) return `切中了！${around(actual)}正是 tokenizer 的切點。`;
-  if (desired <= 0 || desired >= chars.length) return `刀落在句子邊緣，句子還是從 tokenizer 的切點${around(actual)}裂開。`;
-  return `你想切在${around(desired)}，但 tokenizer 不切那裡；句子在${around(actual)}裂開。`;
+/** Where the blade crossed the sentence: on the seam between two characters, or through a character. */
+export type SlashHit = { kind: "seam"; boundary: number } | { kind: "char"; index: number } | { kind: "outside" };
+
+export type SlashOutcome =
+  | { result: "cut"; cut: number; message: string }
+  | { result: "bounce"; message: string; tokenIndex: number | null };
+
+const pair = (chars: string[], offset: number) => `「${chars.slice(Math.max(0, offset - 2), offset).join("")}｜${chars.slice(offset, offset + 2).join("")}」`;
+
+function tokenIndexAt(scenario: ScenarioFixture, charIndex: number): number {
+  let position = 0;
+  return scenario.inputTokens.findIndex((token) => {
+    position += Array.from(token.text).length;
+    return charIndex < position;
+  });
+}
+
+/**
+ * Only a blade that lands on a real tokenizer seam splits the sentence. A blade through the middle
+ * of a character, or on the seam inside one token (想｜念), bounces off and the visitor is told why.
+ */
+export function resolveSlash(scenario: ScenarioFixture, hit: SlashHit, done: number[]): SlashOutcome {
+  const chars = sentenceChars(scenario);
+  const cuts = cutOffsets(scenario);
+  const next = snapCut(hit.kind === "seam" ? hit.boundary : hit.kind === "char" ? hit.index + 0.5 : 0, cuts, done);
+  const tip = next === null ? "" : `試試${pair(chars, next)}這條縫。`;
+  if (hit.kind === "outside") return { result: "bounce", tokenIndex: null, message: `刀沒有劃過句子。${tip}` };
+  if (hit.kind === "char") {
+    const tokenIndex = tokenIndexAt(scenario, hit.index);
+    return { result: "bounce", tokenIndex, message: `彈開了！刀落在「${chars[hit.index]}」字中間，一個字本身切不開。${tip}` };
+  }
+  if (cuts.includes(hit.boundary)) {
+    if (done.includes(hit.boundary)) return { result: "bounce", tokenIndex: null, message: `${pair(chars, hit.boundary)}已經切開了。${tip}` };
+    return { result: "cut", cut: hit.boundary, message: `切中了！${pair(chars, hit.boundary)}正是 tokenizer 的切點。` };
+  }
+  const tokenIndex = tokenIndexAt(scenario, hit.boundary);
+  const token = scenario.inputTokens[tokenIndex]?.text ?? "";
+  return { result: "bounce", tokenIndex, message: `彈開了！「${token}」是同一塊 token，tokenizer 不會從中間切開。${tip}` };
+}
+
+/** The keyboard / gyro blade can't aim, so a swing always lands on the next real seam, left to right. */
+export function autoSlash(scenario: ScenarioFixture, done: number[]): SlashOutcome | null {
+  const cut = cutOffsets(scenario).find((offset) => !done.includes(offset));
+  return cut === undefined ? null : resolveSlash(scenario, { kind: "seam", boundary: cut }, done);
 }

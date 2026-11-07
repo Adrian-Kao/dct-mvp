@@ -76,3 +76,29 @@ export function playCrack(): void {
     // decoration only
   }
 }
+
+/** 彈開: a metallic clank when the blade hits a spot the tokenizer won't split. */
+export function playClank(): void {
+  const context = audio();
+  if (!context) return;
+  try {
+    const now = context.currentTime;
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    gain.connect(context.destination);
+    for (const frequency of [1240, 1860, 2730]) {
+      const tone = context.createOscillator();
+      tone.type = "square";
+      tone.frequency.setValueAtTime(frequency, now);
+      tone.frequency.exponentialRampToValueAtTime(frequency * 0.94, now + 0.3);
+      const partial = context.createGain();
+      partial.gain.value = 0.18;
+      tone.connect(partial).connect(gain);
+      tone.start(now);
+      tone.stop(now + 0.36);
+    }
+  } catch {
+    // decoration only
+  }
+}

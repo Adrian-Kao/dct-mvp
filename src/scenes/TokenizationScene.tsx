@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { useExperience } from "../app/ExperienceProvider";
 import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
-import { cutOffsets, freedTokenIndexes, sentenceChars, slashMessage, snapCut } from "../data/tokenCuts";
-import { playCrack, playSwish } from "../input/sliceSounds";
+import { autoSlash, cutOffsets, freedTokenIndexes, resolveSlash, sentenceChars, type SlashHit, type SlashOutcome } from "../data/tokenCuts";
+import { playClank, playCrack, playSwish } from "../input/sliceSounds";
 import { AvatarCanvas } from "../visual/AvatarCanvas";
 
 interface TrailPoint { x: number; y: number; t: number }
@@ -23,6 +23,7 @@ export function TokenizationScene() {
   const [message, setMessage] = useState<string | null>(null);
   const [trail, setTrail] = useState<TrailPoint[]>([]);
   const [slashes, setSlashes] = useState(0);
+  const [bounce, setBounce] = useState<{ tokenIndex: number | null; key: number } | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
   const sentenceRef = useRef<HTMLParagraphElement>(null);
   const charRefs = useRef<Array<HTMLSpanElement | null>>([]);
@@ -30,23 +31,28 @@ export function TokenizationScene() {
   const complete = done.length === cuts.length;
   const freed = useMemo(() => new Set(freedTokenIndexes(scenario, done)), [done, scenario]);
 
-  /** One blade stroke landed at character boundary `desired`; the tokenizer decides where it really splits. */
-  const slash = useCallback((desired: number) => {
-    if (!ready) return;
-    const actual = snapCut(desired, cuts, done);
-    if (actual === null) return;
+  /** One blade stroke landed; only a real tokenizer seam splits, anything else bounces off. */
+  const slash = useCallback((outcome: SlashOutcome | null) => {
+    if (!ready || !outcome) return;
     playSwish();
-    playCrack();
-    setDone((previous) => (previous.includes(actual) ? previous : [...previous, actual]));
-    setFreshCut(actual);
     setSlashes((count) => count + 1);
-    setMessage(slashMessage(chars, desired, actual));
-  }, [chars, cuts, done, ready]);
+    setMessage(outcome.message);
+    if (outcome.result === "bounce") {
+      playClank();
+      setBounce((previous) => ({ tokenIndex: outcome.tokenIndex, key: (previous?.key ?? 0) + 1 }));
+      return;
+    }
+    playCrack();
+    setBounce(null);
+    setDone((previous) => (previous.includes(outcome.cut) ? previous : [...previous, outcome.cut]));
+    setFreshCut(outcome.cut);
+  }, [ready]);
 
   const slashRef = useRef(slash);
-  useEffect(() => { slashRef.current = slash; });
+  const doneRef = useRef(done);
+  useEffect(() => { slashRef.current = slash; doneRef.current = done; });
 
-  // Keyboard stands in for the hand-held gyro blade: one key press = one swing, landing somewhere random.
+  // Keyboard stands in for the hand-held gyro blade: it can't aim, so each swing takes the next real seam.
   useEffect(() => {
     if (!ready) return;
     const handleKey = (event: KeyboardEvent) => {
@@ -55,11 +61,11 @@ export function TokenizationScene() {
       if (event.key !== " " && event.key !== "ArrowDown") return;
       event.preventDefault();
       if (event.repeat) return;
-      slashRef.current(1 + Math.floor(Math.random() * (chars.length - 1)));
+      slashRef.current(autoSlash(scenario, doneRef.current));
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [chars.length, ready]);
+  }, [ready, scenario]);
 
   // The blade trail fades out on its own.
   useEffect(() => {
@@ -76,15 +82,22 @@ export function TokenizationScene() {
     return { x: event.clientX - rect.left, y: event.clientY - rect.top, cx: event.clientX, cy: event.clientY };
   };
 
-  /** Which character boundary sits under screen x (0 = before the first character). */
-  const boundaryAt = (clientX: number) => {
-    let boundary = 0;
-    charRefs.current.forEach((span, index) => {
-      if (!span) return;
-      const rect = span.getBoundingClientRect();
-      if (clientX > rect.left + rect.width / 2) boundary = index + 1;
-    });
-    return boundary;
+  /**
+   * What the blade crossed at screen x: a seam between two characters (only a narrow band around the
+   * gap counts), or the body of a character.
+   */
+  const hitAt = (clientX: number): SlashHit => {
+    const rects = charRefs.current.map((span) => span?.getBoundingClientRect() ?? null);
+    for (let boundary = 1; boundary < rects.length; boundary += 1) {
+      const left = rects[boundary - 1];
+      const right = rects[boundary];
+      if (!left || !right) continue;
+      const seamX = (left.right + right.left) / 2;
+      const tolerance = Math.max((right.left - left.right) / 2, Math.min(left.width, right.width) * 0.2);
+      if (Math.abs(clientX - seamX) <= tolerance) return { kind: "seam", boundary };
+    }
+    const index = rects.findIndex((rect) => rect && clientX >= rect.left && clientX <= rect.right);
+    return index >= 0 ? { kind: "char", index } : { kind: "outside" };
   };
 
   const startStroke = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -111,11 +124,11 @@ export function TokenizationScene() {
     const midY = box.top + box.height / 2;
     if ((from.y - midY) * (to.y - midY) > 0) return;
     const crossX = from.x + ((midY - from.y) / (to.y - from.y)) * (to.x - from.x);
-    if (crossX < box.left - 24 || crossX > box.right + 24) return;
+    if (crossX < box.left || crossX > box.right) return;
     if (now - stroke.lastHit < MIN_HIT_GAP_MS) return;
     stroke.hits += 1;
     stroke.lastHit = now;
-    slashRef.current(boundaryAt(crossX));
+    slashRef.current(resolveSlash(scenario, hitAt(crossX), doneRef.current));
   };
 
   const endStroke = () => {
@@ -137,6 +150,13 @@ export function TokenizationScene() {
     chunks.push({ start, end, tokenIndex: isSingle && freed.has(tokenIndex) ? tokenIndex : null });
   });
 
+  const tokenStart = (index: number) => (index === 0 ? 0 : cuts[index - 1]);
+  const bounceHits = (chunk: { start: number; end: number }) => {
+    if (!bounce || bounce.tokenIndex === null) return false;
+    const start = tokenStart(bounce.tokenIndex);
+    return start >= chunk.start && start < chunk.end;
+  };
+
   const hint = complete
     ? "全部切完了！每一塊都翻面變成編號。"
     : message ?? "按住滑鼠，像揮刀一樣劃過飛起來的句子（或按 Space 揮一刀）。";
@@ -149,7 +169,7 @@ export function TokenizationScene() {
         task="彈珠裂開，問題被拋到空中。揮刀把句子劈開，看看 AI 會把它切成哪幾塊。"
         steps={[
           { text: "按住滑鼠，揮刀劃過飛起來的句子", keys: ["拖曳", "Space"], done: slashes > 0 },
-          { text: "不管你劈在哪裡，句子只會在 tokenizer 的切點裂開", done: slashes > 0 },
+          { text: "只有劈在 tokenizer 的切縫上才會裂開；劈在字中間會彈開", done: done.length > 0 },
           { text: `把句子全部切開（${done.length} / ${cuts.length} 刀）`, done: complete },
           { text: "切下的字片掉到下方，翻面變成數字編號", done: complete },
         ]}
@@ -171,8 +191,8 @@ export function TokenizationScene() {
           <p ref={sentenceRef} className="slice-sentence token-question" aria-label={scenario.question} aria-hidden={complete}>
             {chunks.map((chunk, index) => (
               <span
-                key={`${chunk.start}-${chunk.end}`}
-                className={`slice-chunk${chunk.tokenIndex !== null ? " is-freed" : ""}${chunk.start === freshCut || chunk.end === freshCut ? " is-fresh" : ""}`}
+                key={`${chunk.start}-${chunk.end}-${bounceHits(chunk) ? bounce?.key : 0}`}
+                className={`slice-chunk${chunk.tokenIndex !== null ? " is-freed" : ""}${chunk.start === freshCut || chunk.end === freshCut ? " is-fresh" : ""}${bounceHits(chunk) ? " is-bounce" : ""}`}
                 style={{ ["--tilt" as string]: `${index === 0 ? 0 : (index % 2 ? 1 : -1) * Math.min(6, 2 + index)}deg` }}
               >
                 {chars.slice(chunk.start, chunk.end).map((char, offset) => (
