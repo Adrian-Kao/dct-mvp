@@ -1,21 +1,30 @@
 import { expect, test } from "@playwright/test";
 import { lockNextVectorToken } from "./helpers";
 
-test("complete reduced-motion 2D flow from simulated hold to personal summary", async ({ page }) => {
+test("complete reduced-motion 2D flow from entrance scan to personal summary", async ({ page }) => {
   await page.goto("/?renderer=2d");
   await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   await page.keyboard.press("d");
   await page.getByLabel("減少動態").check();
   await page.getByRole("button", { name: "關閉演示工具" }).click();
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle");
-  await expect(page.getByLabel("站 0 · 入口 任務")).toContainText("語言模型");
+  await expect(page.getByLabel("站 0 · 入口 任務")).toContainText("你就是 AI");
+  await expect(page.getByText("站到鏡頭前。")).toBeVisible();
+  await expect(page.locator(".progress-band")).not.toHaveClass(/is-lit/u);
 
-  const hold = page.getByRole("button", { name: "按住提問" });
-  await hold.hover();
-  await page.mouse.down();
-  await page.waitForTimeout(680);
-  await page.mouse.up();
-  await expect(page.getByText("為什麼人會想念一個人？")).toBeVisible();
+  // Station 0: skip the camera, the default face is scanned, then the sealed marble appears.
+  await page.getByRole("button", { name: "不掃描、用預設影像" }).click();
+  await expect(page.getByText("掃描完成。你現在是一個語言模型。")).toBeVisible({ timeout: 4_000 });
+  await expect(page.locator(".model-number")).toContainText("MODEL #");
+  await expect(page.locator(".progress-band")).toHaveClass(/is-lit/u);
+  const marble = page.getByRole("button", { name: /彈珠 token/u });
+  await expect(marble).toBeVisible({ timeout: 4_000 });
+  await expect(page.getByText("有人問了一個問題。")).toBeVisible();
+  await expect(page.getByText("為什麼人會想念一個人？")).toHaveCount(0); // sealed until station 1
+  await marble.click();
+  await expect(page.getByText("為什麼人會想念一個人？")).toBeVisible({ timeout: 6_000 });
+  await expect(page.locator(".progress-avatar")).toBeVisible();
+  await expect(page.locator(".progress-band")).toHaveAttribute("data-progress-station", "tokenization");
 
   // Station 1: tokens flip to numbers, then the visitor moves on.
   await expect(page.locator(".token-chip")).toHaveCount(7, { timeout: 6_000 });

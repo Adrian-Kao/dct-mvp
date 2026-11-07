@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useExperience } from "../app/ExperienceProvider";
-import { sceneLabels, sceneOrder } from "../app/sceneOrder";
 import { SimulationInfo } from "./SimulationInfo";
 import { PresenterPanel } from "./PresenterPanel";
+import { ProgressBand } from "./ProgressBand";
 
 interface Props {
   children: ReactNode;
@@ -15,7 +15,6 @@ export function StageFrame({ children, renderer2d, visual, transfer }: Props) {
   const { state, dispatch } = useExperience();
   const [infoOpen, setInfoOpen] = useState(false);
   const infoButton = useRef<HTMLButtonElement>(null);
-  const stageIndex = sceneOrder.indexOf(state.scene) + 1;
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       const target = event.target;
@@ -48,10 +47,7 @@ export function StageFrame({ children, renderer2d, visual, transfer }: Props) {
           <span className="brand-mark" aria-hidden="true" />
           <span>BEFORE THE ANSWER</span>
         </div>
-        <div className="stage-progress" aria-label={`第 ${stageIndex} 幕，共 ${sceneOrder.length} 幕`}>
-          <span>{sceneLabels[state.scene]}</span>
-          <strong>{String(stageIndex).padStart(2, "0")} <i>/ {String(sceneOrder.length).padStart(2, "0")}</i></strong>
-        </div>
+        <ProgressBand />
         <div className="header-actions">
           <button ref={infoButton} type="button" onClick={() => setInfoOpen(true)}>關於這個示意</button>
           <button type="button" onClick={() => dispatch({ type: "TOGGLE_PRESENTER" })}>演示工具 <kbd>D</kbd></button>

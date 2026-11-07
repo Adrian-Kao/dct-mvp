@@ -1,4 +1,5 @@
 import { keywordsComplete } from "../data/attention";
+import { buildDefaultAvatar, type Avatar } from "../data/avatar";
 import { isAligned, nextLockTarget } from "../data/vectorSpace";
 import type { ScenarioFixture } from "../data/scenarioTypes";
 import type { TransitionMode, TransitionVisualPhase } from "../motion/transitionTypes";
@@ -16,6 +17,8 @@ export interface ExperienceState {
   transitionTarget: SceneId | null;
   transitionMode: TransitionMode | null;
   transitionVisualPhase: TransitionVisualPhase;
+  /** Station 0: the visitor's virtual image. Node coordinates only, cleared on every reset. */
+  avatar: Avatar | null;
   /** Station 2: turntable angle (radians) and the question tokens locked into a constellation. */
   vector: {
     angle: number;
@@ -45,7 +48,7 @@ export interface ExperienceState {
 export type GuardMeta = { runId: number; sceneInstanceId: number };
 
 export type ExperienceAction =
-  | { type: "INPUT_CONFIRMED" }
+  | { type: "AVATAR_SET"; avatar: Avatar }
   | { type: "VECTOR_ROTATE"; delta: number }
   | { type: "VECTOR_LOCK"; scenario: ScenarioFixture }
   | { type: "ATTENTION_ROTATE"; delta: 1 | -1; scenario: ScenarioFixture }
@@ -117,6 +120,7 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     transitionTarget: "input",
     transitionMode: "entry",
     transitionVisualPhase: "blackHold",
+    avatar: null,
     vector: emptyVector(),
     attention: emptyAttention(),
     generation: emptyGeneration(),
@@ -130,9 +134,9 @@ function validMeta(state: ExperienceState, meta: GuardMeta): boolean {
 
 export function experienceReducer(state: ExperienceState, action: ExperienceAction): ExperienceState {
   switch (action.type) {
-    case "INPUT_CONFIRMED":
+    case "AVATAR_SET":
       if (state.scene !== "input" || state.scenePhase !== "ready") return state;
-      return state;
+      return { ...state, avatar: action.avatar };
     case "VECTOR_ROTATE": // The big turntable spins the whole star field around its vertical axis.
       if (state.scene !== "vector" || state.scenePhase !== "ready") return state;
       return { ...state, vector: { ...state.vector, angle: state.vector.angle + action.delta } };
@@ -213,6 +217,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionTarget: action.scene,
         transitionMode: "entry",
         transitionVisualPhase: "blackHold",
+        avatar: action.scene === "input" ? null : (state.avatar ?? buildDefaultAvatar()),
         vector: action.scene === "vector" || action.scene === "input" || action.scene === "tokenization" ? emptyVector() : completeVector(action.scenario),
         attention: needsAttention ? completeAttention(action.scenario, "presenter") : emptyAttention("presenter"),
         generation: needsAnswer ? completeGeneration(action.scenario) : emptyGeneration(),
@@ -221,11 +226,12 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
     }
     case "REPLAY_SCENE": {
       const vector = state.scene === "vector" ? emptyVector() : state.vector;
+      const avatar = state.scene === "input" ? null : state.avatar;
       const attention = state.scene === "attention" ? emptyAttention(state.attention.source) : state.attention;
       const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", vector, attention, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", avatar, vector, attention, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

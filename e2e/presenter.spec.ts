@@ -9,5 +9,6 @@ test("safe downstream fixture and reset", async ({ page }) => {
   await expect(page.getByText(/想念一個人，是因為他曾經是你生活的一部分/u)).toBeVisible();
   await page.keyboard.press("d");
   await page.getByRole("button", { name: "重新開始" }).click();
-  await expect(page.getByRole("button", { name: "按住提問" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "不掃描、用預設影像" })).toBeVisible();
+  await expect(page.locator(".progress-avatar")).toHaveCount(0); // the virtual image is gone after a reset
 });

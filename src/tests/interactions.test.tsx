@@ -8,14 +8,13 @@ describe("core interactions", () => {
     window.history.replaceState({}, "", "/?renderer=2d");
   });
 
-  it("does not submit a short simulated hold", async () => {
+  it("tells the visitor about privacy and offers a no-camera path before scanning", async () => {
     render(<ExperienceProvider><App /></ExperienceProvider>);
     await waitFor(() => expect(document.getElementById("stage-root")).toHaveAttribute("data-transition-phase", "idle"), { timeout: 3000 });
-    const button = screen.getByRole("button", { name: "按住提問" });
-    fireEvent.pointerDown(button, { pointerId: 1 });
-    fireEvent.pointerUp(button, { pointerId: 1 });
-    expect(screen.getByText("按得太短了，請再按住一下。")).toBeInTheDocument();
-    expect(screen.queryByText("YOUR QUESTION")).not.toBeInTheDocument();
+    expect(screen.getByText("站到鏡頭前。")).toBeInTheDocument();
+    expect(screen.getByText(/不拍照、不上傳/u)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "不掃描、用預設影像" })).toBeEnabled();
+    expect(screen.queryByText("為什麼人會想念一個人？")).not.toBeInTheDocument();
   });
 
   it("opens the presenter panel with D and safely jumps to a complete summary", () => {

@@ -1,6 +1,6 @@
 # Before the Answer — Interactive MVP
 
-《Before the Answer》是一個單機、單頁、固定資料的互動敘事原型。觀眾把預設問題送入系統，依序經過 Tokenization、Vector、Attention（轉盤）、Generation（壓泵）、Output 與 Summary。它不執行語言模型，也不使用麥克風、攝影機、後端或遠端 API。
+《Before the Answer》是一個單機、單頁、固定資料的互動敘事原型。觀眾把預設問題送入系統，依序經過 Tokenization、Vector、Attention（轉盤）、Generation（壓泵）、Output 與 Summary。它不執行語言模型，也不使用麥克風、後端或遠端 API。站 0 會用攝影機在本機辨識臉部節點（MediaPipe Face Landmarker），只保留節點座標、不拍照、不上傳，重新開始即刪除；觀眾也可以選「不掃描、用預設影像」。
 
 ## 環境與啟動
 
@@ -28,11 +28,15 @@ npm run preview
 
 正常演示只使用已打包的本地程式與系統字型，不需要外網。
 
+臉部辨識的模型放在 `public/models/face_landmarker.task`（約 3.7 MB，已進版控）。WASM 檔在 `npm run dev` / `npm run build` 前由 `scripts/copy-mediapipe-wasm.mjs` 自動從 `node_modules` 複製到 `public/mediapipe/wasm`（不進版控），所以換電腦後先跑一次 `npm install`。`index.html` 設了 `connect-src 'self'`，頁面只能連本機；這也擋掉 MediaPipe 內建送往 Google 的使用紀錄。
+
+攝影機只在 `localhost` 或 https 下能開；`npm run preview -- --host` 用區網 IP 開會被瀏覽器擋，此時請在展示電腦本機開。
+
 ## 建議演示路徑
 
 題目是腳本範例「為什麼人會想念一個人？」。每一站右上角有任務卡，寫著你的任務、操作步驟和完成後「你剛剛學到」的一句話。鍵盤暫時代替實體裝置。
 
-1. 站 0 入口：按住手機上的圓形按鈕至少 0.6 秒，看到「放開送出」再放開。
+1. 站 0 入口：按「開始掃描」（第一次會詢問鏡頭權限）或「不掃描、用預設影像」。掃描光線由上而下掃過、臉變成節點並浮出模型編號後，點選發光的彈珠 token。上方進度帶亮起，你的編號飛到站 1。問題要到站 1 才會打開。
 2. 站 1 切字：句子被切成 7 塊，每塊翻面變成 token 編號（兩個「人」是同一個編號）。按「帶著編號前往站 2」。
 3. 站 2 向量化：`←` `→` 轉動星空（也可拖曳或按 ◀ ▶），把發光的目標字轉進中間的光帶，按 `Space` 或「鎖定」。鎖定後會拉出最近的 3 個字，線越短越亮。依序鎖定 想念 → 人 → 為什麼 → 一個，至少 2 個、最多 4 個。
 4. 站 3 注意力：`←` `→` 轉動轉盤，指針停在哪個字，圓餅與連線就顯示這個字對其他字的注意力比例。關鍵字（為什麼、想念、人）都轉過後，只留下最粗的 3 條線。

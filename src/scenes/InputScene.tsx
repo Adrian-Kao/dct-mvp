@@ -2,121 +2,197 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useExperience } from "../app/ExperienceProvider";
 import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
+import { buildDefaultAvatar, normalizeLandmarks, pickMainFace, type Avatar } from "../data/avatar";
+import { createFaceScanner, type FaceScanner } from "../input/faceScanner";
+import { playInhaleSound } from "../input/inhaleSound";
+import { AvatarCanvas } from "../visual/AvatarCanvas";
 
-type InputPhase = "idle" | "holding" | "transcript" | "transferring";
+type EntrancePhase = "standby" | "loading" | "scanning" | "complete" | "token" | "absorbing";
+
+const AVATAR_SIZE = 340;
 
 export function InputScene() {
-  const { state, dispatch, scenario } = useExperience();
-  const [phase, setPhase] = useState<InputPhase>("idle");
-  const [longEnough, setLongEnough] = useState(false);
-  const [message, setMessage] = useState("按住手機上的圓形按鈕，接下這個問題。");
-  const startedAt = useRef(0);
-  const holdTimer = useRef<number | null>(null);
-  const transferTimer = useRef<number | null>(null);
-  const submitted = useRef(false);
+  const { state, dispatch } = useExperience();
+  const reduced = state.settings.reducedMotion;
+  const ready = state.scenePhase === "ready" && state.scene === "input";
+  const [phase, setPhase] = useState<EntrancePhase>("standby");
+  const [live, setLive] = useState<Avatar | null>(null);
+  const [scan, setScan] = useState(0);
+  const [dissolve, setDissolve] = useState(0);
+  const [faceMissing, setFaceMissing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [usingCamera, setUsingCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scannerRef = useRef<FaceScanner | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const timersRef = useRef<number[]>([]);
+  const [seed] = useState(() => Math.floor(Math.random() * 1_000_000));
+  const scanSeconds = reduced ? 0.6 : 2.8;
 
-  const cancelHolding = useCallback((hint = "已取消，請再按住一下。") => {
-    if (holdTimer.current) window.clearTimeout(holdTimer.current);
-    holdTimer.current = null;
-    startedAt.current = 0;
-    setLongEnough(false);
-    setPhase((current) => current === "holding" ? "idle" : current);
-    setMessage(hint);
+  const stopCamera = useCallback(() => {
+    scannerRef.current?.stop();
+    scannerRef.current = null;
   }, []);
 
-  useEffect(() => {
-    const handleBlur = () => cancelHolding("輸入已安全取消，請重新按住。");
-    const handleVisibility = () => document.hidden && cancelHolding("輸入已安全取消，請重新按住。");
-    window.addEventListener("blur", handleBlur);
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      if (holdTimer.current) window.clearTimeout(holdTimer.current);
-      if (transferTimer.current) window.clearTimeout(transferTimer.current);
+  useEffect(() => () => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    timersRef.current.forEach(window.clearTimeout);
+    stopCamera();
+  }, [stopCamera]);
+
+  const later = useCallback((callback: () => void, ms: number) => {
+    timersRef.current.push(window.setTimeout(callback, ms));
+  }, []);
+
+  const finishScan = useCallback((avatar: Avatar) => {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    stopCamera(); // the camera is off as soon as the nodes are captured
+    setLive(avatar);
+    setScan(1);
+    setPhase("complete");
+    dispatch({ type: "AVATAR_SET", avatar });
+    const start = performance.now();
+    const melt = (now: number) => {
+      const progress = Math.min(1, (now - start) / (reduced ? 200 : 1300));
+      setDissolve(progress * 0.55);
+      if (progress < 1) frameRef.current = requestAnimationFrame(melt);
     };
-  }, [cancelHolding]);
+    frameRef.current = requestAnimationFrame(melt);
+    later(() => setPhase("token"), reduced ? 500 : 2600);
+  }, [dispatch, later, reduced, stopCamera]);
 
-  const begin = () => {
-    if (phase !== "idle" || state.scenePhase !== "ready" || submitted.current) return;
-    startedAt.current = performance.now();
-    setPhase("holding");
-    setLongEnough(false);
-    setMessage("繼續按住……");
-    holdTimer.current = window.setTimeout(() => {
-      setLongEnough(true);
-      setMessage("放開以送出");
-    }, 600);
-  };
+  /** Scan line sweeps top → bottom; with a camera it only moves while a face is in view. */
+  const runScan = useCallback((nextFrame: (now: number) => Avatar | null) => {
+    let progress = 0;
+    let last = performance.now();
+    const step = (now: number) => {
+      const avatar = nextFrame(now);
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      if (avatar) {
+        setFaceMissing(false);
+        setLive(avatar);
+        progress = Math.min(1, progress + dt / scanSeconds);
+        setScan(progress);
+        if (progress >= 1) { finishScan(avatar); return; }
+      } else {
+        setFaceMissing(true);
+      }
+      frameRef.current = requestAnimationFrame(step);
+    };
+    frameRef.current = requestAnimationFrame(step);
+  }, [finishScan, scanSeconds]);
 
-  const finish = () => {
-    if (phase !== "holding" || submitted.current) return;
-    const duration = performance.now() - startedAt.current;
-    if (holdTimer.current) window.clearTimeout(holdTimer.current);
-    holdTimer.current = null;
-    if (duration < 600) {
-      cancelHolding("按得太短了，請再按住一下。");
-      return;
+  const chooseDefault = useCallback((message: string | null = null) => {
+    if (!ready) return;
+    stopCamera();
+    setUsingCamera(false);
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    setNotice(message);
+    const avatar = buildDefaultAvatar(seed);
+    setPhase("scanning");
+    runScan(() => avatar);
+  }, [ready, runScan, seed, stopCamera]);
+
+  const startCamera = useCallback(async () => {
+    if (!ready || phase !== "standby" || !videoRef.current) return;
+    setPhase("loading");
+    setNotice(null);
+    try {
+      const scanner = await createFaceScanner(videoRef.current);
+      scannerRef.current = scanner;
+      setUsingCamera(true);
+      setPhase("scanning");
+      runScan((now) => {
+        const faces = scanner.detect(now);
+        const index = pickMainFace(faces);
+        return index >= 0 ? normalizeLandmarks(faces[index], scanner.connections, seed) : null;
+      });
+    } catch {
+      setPhase("standby");
+      chooseDefault("鏡頭沒有開啟，改用預設影像。");
     }
-    submitted.current = true;
-    setPhase("transcript");
-    setMessage("問題已接下，準備進入站 1。");
-    dispatch({ type: "INPUT_CONFIRMED" });
-    transferTimer.current = window.setTimeout(() => {
-      setPhase("transferring");
-      dispatch({ type: "REQUEST_TRANSITION", target: "tokenization" });
-    }, state.settings.reducedMotion ? 350 : 1200);
+  }, [phase, ready, runScan, chooseDefault, seed]);
+
+  const openToken = () => {
+    if (phase !== "token" || !ready) return;
+    setPhase("absorbing");
+    playInhaleSound(reduced ? 0.5 : 1.2);
+    later(() => dispatch({ type: "REQUEST_TRANSITION", target: "tokenization" }), reduced ? 300 : 1300);
   };
+
+  const scanning = phase === "scanning" || phase === "loading";
+  const done = phase === "complete" || phase === "token" || phase === "absorbing";
+  const screenText = phase === "standby"
+    ? "站到鏡頭前。"
+    : phase === "loading"
+      ? "正在開啟鏡頭……"
+      : phase === "scanning"
+        ? faceMissing ? "請正對鏡頭，站在地上的腳印上。" : "掃描中，請保持不動。"
+        : phase === "complete"
+          ? "掃描完成。你現在是一個語言模型。"
+          : "有人問了一個問題。";
 
   return (
-    <div className="scene-shell input-shell">
-      <SceneHeading eyebrow="站 0 · INPUT 入口" title="有人問了一個問題。" />
+    <div className={`scene-shell input-shell entrance-${phase}`} data-input-phase={phase}>
+      <SceneHeading eyebrow="站 0 · INPUT 入口" title={done ? "你現在是一個語言模型。" : "成為 AI"} />
       <MissionCard
         station="站 0 · 入口"
-        task="從現在起，你是一個語言模型。你手上的問題不是你的，是上一位觀眾留下的。"
+        task="站到鏡頭前，讓系統把你掃描成一個由節點組成的虛擬影像。從這一刻起，你就是 AI。"
         steps={[
-          { text: "按住手機上的圓形按鈕", keys: ["按住"], done: phase !== "idle" },
-          { text: "看到「放開送出」再放開", done: phase === "transcript" || phase === "transferring" },
+          { text: "面對鏡頭，等掃描光線由上而下掃過", done: done },
+          { text: "掃描完成後，點選發光的彈珠 token", done: phase === "absorbing" },
         ]}
-        learned="接下來你不是問問題的人，而是回答問題的 AI。"
-        showLearned={phase === "transcript" || phase === "transferring"}
+        learned="接下來你不是問問題的人，而是回答問題的 AI；你手上的問題不屬於你。"
+        showLearned={phase === "token" || phase === "absorbing"}
       />
-      <div className={`phone-frame phase-${phase}`} data-entry-target="true" data-entry-order="1">
-        <div className="phone-speaker" />
-        <div className="phone-screen">
-          <p className="phone-brand">BEFORE THE ANSWER</p>
-          {(phase === "transcript" || phase === "transferring") ? (
-            <div className="input-transcript">
-              <span>上一位觀眾的問題</span>
-              <strong data-transition-item="true" data-transition-id="input-question" data-transition-role="retained" data-transition-source="dom">{scenario.question}</strong>
-            </div>
-          ) : (
-            <>
-              <div className={`waveform${phase === "holding" ? " is-active" : ""}`} aria-hidden="true">
-                {Array.from({ length: 19 }, (_, index) => <i key={index} style={{ "--wave-index": index } as React.CSSProperties} />)}
-              </div>
-              <button
-                type="button"
-                className={`hold-button${longEnough ? " is-ready" : ""}`}
-                aria-label="按住提問"
-                onPointerDown={(event) => { event.currentTarget.setPointerCapture?.(event.pointerId); begin(); }}
-                onPointerUp={finish}
-                onPointerCancel={() => cancelHolding()}
-                onKeyDown={(event) => {
-                  if ((event.key === " " || event.key === "Enter") && !event.repeat) { event.preventDefault(); begin(); }
-                }}
-                onKeyUp={(event) => {
-                  if (event.key === " " || event.key === "Enter") { event.preventDefault(); finish(); }
-                }}
-              >
-                <span>{longEnough ? "RELEASE" : "HOLD"}</span>
-                <small>{longEnough ? "放開送出" : "按住提問"}</small>
-              </button>
-            </>
+
+      <div className="entrance-stage" data-entry-target="true" data-entry-order="1">
+        <div className="avatar-frame" style={{ width: AVATAR_SIZE, height: AVATAR_SIZE * 1.25 }}>
+          <svg className="avatar-silhouette" viewBox="0 0 340 425" aria-hidden="true">
+            <path d="M170 18 C238 18 268 72 268 140 C268 205 236 252 170 252 C104 252 72 205 72 140 C72 72 102 18 170 18 Z M38 425 C42 330 96 282 170 282 C244 282 298 330 302 425" />
+          </svg>
+          {live && (
+            <AvatarCanvas
+              className="avatar-canvas"
+              points={live.points}
+              edges={live.edges}
+              reveal={done ? 1 : scan}
+              dissolve={dissolve}
+              size={AVATAR_SIZE * 0.7}
+            />
           )}
+          {scanning && <div className="scan-beam" style={{ top: `${4 + scan * 56}%` }} aria-hidden="true" />}
+          {done && state.avatar && <p className="model-number" aria-label={`模型編號 ${state.avatar.modelNumber}`}>MODEL {state.avatar.modelNumber}</p>}
+          <video ref={videoRef} className="entrance-video" muted playsInline aria-hidden="true" />
         </div>
+
+        {(phase === "token" || phase === "absorbing") && (
+          <button type="button" className="question-marble" aria-label="點選彈珠 token，打開上一位觀眾的問題" disabled={phase !== "token" || !ready} onClick={openToken}>
+            <span className="marble-core" aria-hidden="true" />
+            <small>上一位觀眾的問題 · 未開封</small>
+          </button>
+        )}
       </div>
-      <p className="interaction-hint" role="status" data-entry-target="true" data-entry-order="3">{message}</p>
+
+      <div className="entrance-console" data-entry-target="true" data-entry-order="3">
+        <p className="entrance-screen-text" role="status">{screenText}</p>
+        {notice && <p className="entrance-notice">{notice}</p>}
+        {phase === "standby" && (
+          <>
+            <div className="entrance-buttons">
+              <button type="button" className="primary-button" disabled={!ready} onClick={() => void startCamera()}>開始掃描</button>
+              <button type="button" className="ghost-button" disabled={!ready} onClick={() => chooseDefault()}>不掃描、用預設影像</button>
+            </div>
+            <p className="privacy-note">鏡頭只在這台電腦上辨識臉部節點，不拍照、不上傳；體驗結束後節點資料即刪除。</p>
+          </>
+        )}
+        {phase === "scanning" && usingCamera && faceMissing && (
+          <button type="button" className="ghost-button" onClick={() => chooseDefault()}>找不到臉？改用預設影像</button>
+        )}
+      </div>
+      <div className={`white-out${phase === "absorbing" ? " is-on" : ""}`} aria-hidden="true" />
     </div>
   );
 }
