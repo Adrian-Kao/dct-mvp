@@ -71,7 +71,7 @@ function emptyAttention(source: InputSource = "user"): ExperienceState["attentio
   return { focusIndex: 0, visitedTokenIds: [], complete: false, source };
 }
 
-export const VECTOR_START_ANGLE = 1.9;
+export const VECTOR_START_ANGLE = -0.5;
 
 function emptyVector(): ExperienceState["vector"] {
   return { angle: VECTOR_START_ANGLE, lockedTokenIds: [] };

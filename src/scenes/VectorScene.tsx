@@ -4,7 +4,7 @@ import { VECTOR_START_ANGLE } from "../app/experienceReducer";
 import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
 import type { ScenarioFixture, Vec3 } from "../data/scenarioTypes";
-import { isAligned, nearestWords, nextLockTarget, project, tokenText } from "../data/vectorSpace";
+import { isAligned, nearestWords, nextLockTarget, project, tokenText, turnHint } from "../data/vectorSpace";
 
 const KEY_STEP = 0.12;
 const DRAG_STEP = 0.006;
@@ -60,7 +60,7 @@ export function VectorScene() {
       if (element?.closest("input, select, textarea, .presenter-panel")) return;
       if (event.key === "ArrowRight") { event.preventDefault(); dispatch({ type: "VECTOR_ROTATE", delta: KEY_STEP }); }
       if (event.key === "ArrowLeft") { event.preventDefault(); dispatch({ type: "VECTOR_ROTATE", delta: -KEY_STEP }); }
-      if ((event.key === " " || event.key === "Enter") && !element?.closest("button")) { event.preventDefault(); if (!event.repeat) lockRef.current(); }
+      if ((event.key === " " || event.key === "Enter") && !element?.closest(".lock-button, .scene-controls")) { event.preventDefault(); if (!event.repeat) lockRef.current(); }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -78,26 +78,34 @@ export function VectorScene() {
   const endDrag = () => { drag.current = null; };
 
   const targetText = target ? tokenText(scenario, target) : "";
+  const hintTurn = targetPosition ? turnHint(targetPosition, angle, KEY_STEP) : null;
+  const turnLabel = hintTurn ? (hintTurn.direction < 0 ? `← 往左轉 ${hintTurn.steps} 格` : `往右轉 ${hintTurn.steps} 格 →`) : "";
+  const latest = constellations[constellations.length - 1];
+  const farthest = latest
+    ? space.words
+        .map((word) => ({ text: word.text, distance: Math.hypot(...(word.position.map((value, index) => value - space.tokenPositions[latest.id][index]) as [number, number, number])) }))
+        .sort((a, b) => b.distance - a.distance)[0]
+    : null;
   const lockedText = lockedTokenIds.map((id) => tokenText(scenario, id));
   const hint = !target
-    ? "已鎖定 4 個字，星座完成了。"
+    ? `已鎖定 ${space.maxLocks} 個字，星座完成了。`
     : miss && !aligned
-      ? `還沒對準：先把發光的「${targetText}」轉進中間的光帶，再按鎖定。`
+      ? `還沒對準，鎖不住。照上面的箭頭再${turnLabel}。`
       : aligned
-        ? `對準了！按「鎖定」把「${targetText}」和它最近的字連起來。`
-        : `轉動星空，找到發光的「${targetText}」，把它轉進中間的光帶。`;
+        ? "對準了！光帶變金色了，按「鎖定」（或 Space）。"
+        : `${turnLabel}，讓發光的「${targetText}」進入中間的光帶。`;
 
   return (
     <div className="scene-shell vector-shell" data-vector-locked={lockedTokenIds.length} data-vector-aligned={aligned}>
       <SceneHeading eyebrow="站 2 · VECTORIZE 向量化" title="把字放進「意思的星空」" />
       <MissionCard
         station="站 2 · 向量化"
-        task={<>每個字在 AI 心裡都有一個座標。找到問題裡的字，看看哪些字離它最近。</>}
+        task={<>每個字在 AI 心裡都有一個位置，<b>意思越像的字靠得越近</b>。把問題裡的字一個一個轉到正前方鎖定，看看誰是它的鄰居。</>}
         steps={[
-          { text: "轉動大轉盤，讓整片星空旋轉", keys: ["←", "→"], done: angle !== VECTOR_START_ANGLE || lockedTokenIds.length > 0 },
-          { text: <>把發光的目標字轉進中間的<b>光帶</b></>, done: aligned || lockedTokenIds.length > 0 },
-          { text: "按鎖定鈕，拉出最近的字", keys: ["Space"], done: lockedTokenIds.length > 0 },
-          { text: `再鎖定下一個字（至少 ${space.minLocks} 個，最多 ${space.maxLocks} 個）`, done: canContinue },
+          { text: <>照星空上方的<b>箭頭</b>轉動星空（也可以拖曳）</>, keys: ["←", "→"], done: angle !== VECTOR_START_ANGLE || lockedTokenIds.length > 0 },
+          { text: <>發光的目標字進入中間的<b>光帶</b>，光帶會變金色</>, done: aligned || lockedTokenIds.length > 0 },
+          { text: "按「鎖定」，最近的 3 個字會拉出亮線", keys: ["Space"], done: lockedTokenIds.length > 0 },
+          { text: `照順序再鎖定下一個字（至少 ${space.minLocks} 個，最多 ${space.maxLocks} 個）`, done: canContinue },
         ]}
         learned="對 AI 來說，「意思」就是「距離」：靠得越近的字，越常一起出現。線越短越亮，關係越近。"
         showLearned={lockedTokenIds.length > 0}
@@ -105,6 +113,12 @@ export function VectorScene() {
 
       <div className="star-field" data-entry-target="true" data-entry-order="1" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
         <div className={`aim-band${aligned ? " is-aligned" : ""}`} aria-hidden="true"><span>光帶</span></div>
+        {target && (
+          <div className={`aim-guide${aligned ? " is-aligned" : ""}`} aria-hidden="true">
+            目標：<b>{targetText}</b>
+            <span>{aligned ? "對準了，按鎖定！" : turnLabel}</span>
+          </div>
+        )}
         <svg className="star-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           {constellations.map(({ id, neighbors }) => {
             const from = toScreen(space.tokenPositions[id], angle);
@@ -138,7 +152,7 @@ export function VectorScene() {
             <span
               key={token.id}
               className={`star-token${locked ? " is-locked" : ""}${isTarget ? " is-target" : ""}${isTarget && aligned ? " is-aligned" : ""}`}
-              style={{ left: `${point.left}%`, top: `${point.top}%`, zIndex: Math.round(80 + point.depth * 10), opacity: point.depth > -0.5 || locked || isTarget ? 1 : 0.55 }}
+              style={{ left: `${point.left}%`, top: `${point.top}%`, zIndex: Math.round(80 + point.depth * 10), scale: String(Math.max(0.7, Math.min(1.15, point.scale))) }}
               data-transition-item="true"
               data-transition-id={`vector-${token.id}`}
               data-transition-role={locked ? "retained" : "discarded"}
@@ -158,6 +172,9 @@ export function VectorScene() {
           <button type="button" className={`lock-button${aligned ? " is-aligned" : ""}`} disabled={!ready || !target} onClick={lock}>鎖定</button>
           <button type="button" className="dial-step" aria-label="星空往右轉" disabled={!ready} onClick={() => dispatch({ type: "VECTOR_ROTATE", delta: KEY_STEP * 2 })}>▶</button>
         </div>
+        {latest && (
+          <p className="vector-result">離「{tokenText(scenario, latest.id)}」最近：<b>{latest.neighbors.map((word) => word.text).join("、")}</b>{farthest ? <>；很遠的例子：{farthest.text}</> : null}</p>
+        )}
         <p className="vector-progress">已鎖定 <strong>{lockedTokenIds.length}</strong> / {space.maxLocks}{lockedText.length ? `：${lockedText.join("、")}` : ""}</p>
       </div>
       <div className="scene-controls" data-entry-target="true" data-entry-order="4">

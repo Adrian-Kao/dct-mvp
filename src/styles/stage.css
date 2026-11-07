@@ -404,3 +404,10 @@
 .slice-console .interaction-hint { margin: 0; text-align: center; font-size: 16px; }
 .slice-chunk.is-bounce { animation: chunk-bounce .45s ease-out; }
 @keyframes chunk-bounce { 0% { color: #ffb4a0; text-shadow: 0 0 30px rgba(255,120,90,.8); } 20% { translate: 0 -14px; } 40% { translate: 6px 0; } 60% { translate: -5px 0; } 80% { translate: 2px 0; } 100% { translate: 0 0; } }
+.aim-guide { position: absolute; z-index: 120; top: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: baseline; gap: 10px; padding: 7px 16px; border: 1px solid rgba(var(--signal-rgb),.45); border-radius: 999px; background: rgba(9,14,22,.92); color: var(--muted); font-size: 14px; white-space: nowrap; pointer-events: none; }
+.aim-guide b { color: var(--signal); font-size: 18px; }
+.aim-guide span { color: var(--text); font-weight: 650; }
+.aim-guide.is-aligned { border-color: var(--choice); box-shadow: 0 0 24px rgba(var(--choice-rgb),.35); }
+.aim-guide.is-aligned b, .aim-guide.is-aligned span { color: var(--choice); }
+.vector-result { margin: 0; color: var(--muted); font-size: 14px; }
+.vector-result b { color: var(--choice); }

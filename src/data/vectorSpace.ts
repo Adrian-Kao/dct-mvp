@@ -22,10 +22,12 @@ export function project(position: Vec3, angle: number): ProjectedPoint {
   return { x: (rx * scale) / 4, y: (-y * scale) / 3, depth: rz, scale };
 }
 
-/** The aiming band in the middle of the screen. A token must sit inside it, facing the viewer, to be locked. */
+/**
+ * The aiming band in the middle of the screen: whatever the visitor sees inside it can be locked.
+ * (An earlier version also required the token to face the viewer, which looked aligned but refused to lock.)
+ */
 export function isAligned(position: Vec3, angle: number): boolean {
-  const point = project(position, angle);
-  return Math.abs(point.x) < 0.14 && point.depth > 0;
+  return Math.abs(project(position, angle).x) < 0.14;
 }
 
 export interface Neighbor {
@@ -51,4 +53,17 @@ export function nextLockTarget(scenario: ScenarioFixture, lockedTokenIds: string
 
 export function tokenText(scenario: ScenarioFixture, tokenId: string): string {
   return scenario.inputTokens.find((token) => token.id === tokenId)?.text.trim() ?? tokenId;
+}
+
+/**
+ * Which way to turn, and how many detents, to bring a token into the aiming band.
+ * Used for the on-screen arrow so the visitor never has to guess the direction.
+ */
+export function turnHint(position: Vec3, angle: number, step: number): { direction: -1 | 1; steps: number } | null {
+  if (isAligned(position, angle)) return null;
+  for (let steps = 1; steps <= Math.ceil((Math.PI * 2) / step); steps += 1) {
+    if (isAligned(position, angle - steps * step)) return { direction: -1, steps };
+    if (isAligned(position, angle + steps * step)) return { direction: 1, steps };
+  }
+  return null;
 }
