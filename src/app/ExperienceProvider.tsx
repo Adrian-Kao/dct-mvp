@@ -1,10 +1,11 @@
 import { createContext, type Dispatch, type ReactNode, useContext, useMemo, useReducer } from "react";
-import rawScenario from "../data/scenario.json";
+import { loadActiveScenario } from "../data/scenarioStore";
 import type { ScenarioFixture } from "../data/scenarioTypes";
-import { validateScenario } from "../data/validateScenario";
-import { createInitialState, experienceReducer, type ExperienceAction, type ExperienceState } from "./experienceReducer";
+import { configureForScenario, createInitialState, experienceReducer, type ExperienceAction, type ExperienceState } from "./experienceReducer";
 
-const scenario = validateScenario(rawScenario);
+/** The question the back office saved on this computer, or the built-in one. */
+const { scenario } = loadActiveScenario();
+configureForScenario(scenario);
 
 interface ExperienceContextValue {
   state: ExperienceState;

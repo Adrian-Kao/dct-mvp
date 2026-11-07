@@ -67,11 +67,20 @@ export type ExperienceAction =
   | { type: "SET_REDUCED_MOTION"; reducedMotion: boolean }
   | { type: "TOGGLE_PRESENTER"; open?: boolean };
 
-/** The pointer starts on 會, which is not a keyword, so every discovery needs a real turn of the dial. */
-export const ATTENTION_START_INDEX = 2;
+/**
+ * The pointer starts on the first word that is not a keyword (會 in the default question),
+ * so every discovery needs a real turn of the dial. Set once per scenario by the provider.
+ */
+let attentionStartIndex = 2;
+
+export function configureForScenario(scenario: ScenarioFixture): void {
+  const keywordTexts = new Set(scenario.attention.keywordTokenIds.map((id) => scenario.inputTokens.find((token) => token.id === id)?.text));
+  const index = scenario.inputTokens.findIndex((token) => !keywordTexts.has(token.text));
+  attentionStartIndex = Math.max(0, index);
+}
 
 function emptyAttention(source: InputSource = "user"): ExperienceState["attention"] {
-  return { focusIndex: ATTENTION_START_INDEX, visitedTokenIds: [], complete: false, source };
+  return { focusIndex: attentionStartIndex, visitedTokenIds: [], complete: false, source };
 }
 
 export const VECTOR_START_ANGLE = -0.5;
