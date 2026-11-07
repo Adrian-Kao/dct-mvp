@@ -30,12 +30,14 @@ npm run preview
 
 ## 建議演示路徑
 
-1. 在 Input 手機畫面按住圓形按鈕至少 0.6 秒；出現「放開以送出」後放開。這只是模擬波形，不會要求麥克風權限。
-2. Tokenization 自動播放。可 hover 或 focus 六個示意文字單位查看資料，但無需操作。
-3. Vector 拖曳空白區旋轉空間，選 `emotion` 與 `family`；最多兩個，也可零選擇繼續。
-4. Attention（站 3）用鍵盤 `←` `→` 模擬轉盤，一次一格。指針停在哪個字，圓餅與上方連線就顯示「這個字看其他字」的注意力比例；也可以直接點字或按畫面上的 ◀ ▶。三個關鍵字（humans、remember、childhood）都轉過後，只留下最粗的 3 條線，才能按「帶著重點前進」。
-5. Generation（站 4）用 `Space` 或 `↓` 模擬壓泵，也可以按「壓一下」。每壓一下冒出一個水泡，水泡浮到水面破掉時，答案往後長一個 token；停止壓泵，生成就停住。最後一個水泡破掉後自動進入 Output。
-6. Output 顯示完整回答；點「查看這次的路徑」進入 Summary，核對探索、轉盤走過的字、最強 3 條連線、壓泵次數、answerId 與全文。
+題目是腳本範例「為什麼人會想念一個人？」。每一站右上角有任務卡，寫著你的任務、操作步驟和完成後「你剛剛學到」的一句話。鍵盤暫時代替實體裝置。
+
+1. 站 0 入口：按住手機上的圓形按鈕至少 0.6 秒，看到「放開送出」再放開。
+2. 站 1 切字：句子被切成 7 塊，每塊翻面變成 token 編號（兩個「人」是同一個編號）。按「帶著編號前往站 2」。
+3. 站 2 向量化：`←` `→` 轉動星空（也可拖曳或按 ◀ ▶），把發光的目標字轉進中間的光帶，按 `Space` 或「鎖定」。鎖定後會拉出最近的 3 個字，線越短越亮。依序鎖定 想念 → 人 → 為什麼 → 一個，至少 2 個、最多 4 個。
+4. 站 3 注意力：`←` `→` 轉動轉盤，指針停在哪個字，圓餅與連線就顯示這個字對其他字的注意力比例。關鍵字（為什麼、想念、人）都轉過後，只留下最粗的 3 條線。
+5. 站 4 生成：`Space` 或 `↓` 壓泵，每壓一下冒一個水泡，水泡破掉時答案長一塊；停止壓泵，生成就停住。
+6. 站 5 輸出：顯示完整答案；點「查看這次的路徑」進入回顧收據。
 
 所有按鈕支援鍵盤焦點、Enter／Space。右上角可開啟說明。
 
@@ -54,9 +56,10 @@ npm run preview
 
 ## 固定資料與修改位置
 
-- 固定問題、六個示意 token、Vector 位置、Attention 權重表（`attention.weights`，每列加總為 1）、關鍵字與答案 token 序列（`answer.tokens`）：`src/data/scenario.json`
+- 固定問題、7 個示意 token 與編號、站 2 星空（`vectorSpace`：問題字的位置、120 個背景字、鎖定順序）、Attention 權重表（`attention.weights`，每列加總為 1）、關鍵字與答案 token 序列（`answer.tokens`）：`src/data/scenario.json`
 - JSON 結構與載入驗證：`src/data/scenarioTypes.ts`、`src/data/validateScenario.ts`
 - 注意力最強連線與答案組合：`src/data/attention.ts`
+- 星空投影、光帶對準判定與最近鄰：`src/data/vectorSpace.ts`
 - reducer、事件守門與 stale callback 防護：`src/app/experienceReducer.ts`
 - selectors：`src/app/selectors.ts`
 
@@ -66,7 +69,7 @@ npm run preview
 
 - 粒子品質、水泡上浮秒數與跨場景秒數：`src/visual/visualConfig.ts`
 - seeded 粒子資料與路徑：`src/visual/seededRandom.ts`、`src/visual/particlePaths.ts`
-- 單一持續 Canvas、Vector 3D、2D fallback：`src/visual/StageCanvas.tsx`、`src/visual/VectorWorld.tsx`、`src/visual/FallbackStage2D.tsx`
+- 背景 Canvas 與 2D fallback：`src/visual/StageCanvas.tsx`、`src/visual/FallbackStage2D.tsx`（站 2 星空在 `src/scenes/VectorScene.tsx`，兩種模式畫面相同）
 - 跨場景主光點：`src/motion/TransitionController.tsx`
 - 版面、響應式與低動態樣式：`src/styles/stage.css`
 

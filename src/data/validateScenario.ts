@@ -7,7 +7,7 @@ function assert(condition: unknown, message: string): asserts condition {
 export function validateScenario(value: unknown): ScenarioFixture {
   assert(typeof value === "object" && value !== null, "root must be an object");
   const data = value as Record<string, unknown>;
-  for (const key of ["id", "question", "questionZh"] as const) {
+  for (const key of ["id", "question"] as const) {
     assert(typeof data[key] === "string" && data[key].length > 0, `${key} is required`);
   }
   assert(typeof data.seed === "number" && Number.isInteger(data.seed), "seed must be an integer");
@@ -22,18 +22,26 @@ export function validateScenario(value: unknown): ScenarioFixture {
     assert(!tokenIds.has(item.id), `duplicate token id ${item.id}`);
     tokenIds.add(item.id);
     assert(typeof item.text === "string" && item.text.length > 0, `inputTokens[${index}].text is required`);
+    assert(typeof item.tokenId === "number" && Number.isInteger(item.tokenId), `inputTokens[${index}].tokenId must be an integer`);
   });
   const rebuilt = (data.inputTokens as Array<{ text: string }>).map((item) => item.text).join("");
   assert(rebuilt === data.question, "inputTokens must reconstruct question exactly");
 
-  assert(Array.isArray(data.vectorNodes) && data.vectorNodes.length === 9, "vectorNodes must contain nine nodes");
-  data.vectorNodes.forEach((node, index) => {
-    assert(typeof node === "object" && node !== null, `vectorNodes[${index}] must be an object`);
-    const item = node as Record<string, unknown>;
-    assert(typeof item.id === "string" && typeof item.label === "string", `vectorNodes[${index}] needs id and label`);
-    assert(Array.isArray(item.position) && item.position.length === 3 && item.position.every(Number.isFinite), `vectorNodes[${index}] needs a 3D position`);
-    assert(typeof item.selectable === "boolean", `vectorNodes[${index}].selectable is required`);
+  const isVec3 = (value: unknown) => Array.isArray(value) && value.length === 3 && value.every((n) => typeof n === "number" && Number.isFinite(n));
+  assert(typeof data.vectorSpace === "object" && data.vectorSpace !== null, "vectorSpace is required");
+  const space = data.vectorSpace as Record<string, unknown>;
+  assert(Array.isArray(space.lockOrder) && space.lockOrder.length > 0, "vectorSpace.lockOrder is required");
+  space.lockOrder.forEach((id) => assert(tokenIds.has(id as string), `unknown lock token ${String(id)}`));
+  assert(typeof space.minLocks === "number" && typeof space.maxLocks === "number" && space.minLocks >= 1 && space.minLocks <= space.maxLocks && space.maxLocks <= space.lockOrder.length, "vectorSpace lock limits are invalid");
+  assert(typeof space.neighborCount === "number" && space.neighborCount >= 1, "vectorSpace.neighborCount is required");
+  assert(typeof space.tokenPositions === "object" && space.tokenPositions !== null, "vectorSpace.tokenPositions are required");
+  tokenIds.forEach((id) => assert(isVec3((space.tokenPositions as Record<string, unknown>)[id]), `vectorSpace.tokenPositions.${id} needs a 3D position`));
+  assert(Array.isArray(space.words) && space.words.length >= 20, "vectorSpace.words needs at least 20 words");
+  space.words.forEach((word, index) => {
+    const item = word as Record<string, unknown>;
+    assert(typeof item.text === "string" && item.text.length > 0 && isVec3(item.position), `vectorSpace.words[${index}] needs text and a 3D position`);
   });
+
   const tokenCount = data.inputTokens.length;
   assert(typeof data.attention === "object" && data.attention !== null, "attention is required");
   const attention = data.attention as Record<string, unknown>;

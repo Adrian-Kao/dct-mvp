@@ -24,12 +24,12 @@ export function SimulationInfo({ open, onClose }: Props) {
       <section className="info-panel" role="dialog" aria-modal="true" aria-labelledby="simulation-info-title">
         <p className="eyebrow">ABOUT THIS SIMULATION</p>
         <h2 id="simulation-info-title">關於這個示意</h2>
-        <p>此演示使用預設資料，不執行語言模型。畫面中的 token 切分、三維位置、關聯線與候選機率皆為教學／藝術示意。Attention 站的選擇是在切換預寫內容，不是在修改真實模型權重。</p>
+        <p>這個版本還沒有接上真的語言模型。畫面上的切字、token 編號、星空座標、注意力比例和答案，目前都是預先寫好的示意資料，用來測試體驗流程。</p>
         <ul>
-          <li><code>t01</code> 等是本地示意單位，不是真實 token ID。</li>
-          <li>百分比只正規化三個畫面候選，不代表完整詞彙表。</li>
-          <li>概念位置是美術配置；粒子量不代表參數、算力或計算次數。</li>
-          <li>Generation 播放預設文字片段，不是模型內部思考或即時輸出。</li>
+          <li>token 編號是示意數字；之後會換成真實 tokenizer 的 ID。</li>
+          <li>站 2 星空座標是手動排的示意位置；之後會換成真實 embedding 降維到三維的結果。</li>
+          <li>站 3 圓餅比例是示意權重；之後會換成開源模型實際的注意力權重。</li>
+          <li>鍵盤按鍵暫時代替實體裝置：← → 是轉盤，Space 是鎖定鈕或水泵。</li>
         </ul>
         <button ref={closeRef} type="button" className="primary-button" onClick={onClose}>回到體驗</button>
       </section>

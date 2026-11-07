@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useExperience } from "../app/ExperienceProvider";
+import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
 
 type InputPhase = "idle" | "holding" | "transcript" | "transferring";
@@ -8,7 +9,7 @@ export function InputScene() {
   const { state, dispatch, scenario } = useExperience();
   const [phase, setPhase] = useState<InputPhase>("idle");
   const [longEnough, setLongEnough] = useState(false);
-  const [message, setMessage] = useState("按住按鈕至少 0.6 秒，再放開送出固定問題。");
+  const [message, setMessage] = useState("按住手機上的圓形按鈕，接下這個問題。");
   const startedAt = useRef(0);
   const holdTimer = useRef<number | null>(null);
   const transferTimer = useRef<number | null>(null);
@@ -41,7 +42,7 @@ export function InputScene() {
     startedAt.current = performance.now();
     setPhase("holding");
     setLongEnough(false);
-    setMessage("這是模擬波形，不會啟用麥克風。");
+    setMessage("繼續按住……");
     holdTimer.current = window.setTimeout(() => {
       setLongEnough(true);
       setMessage("放開以送出");
@@ -59,7 +60,7 @@ export function InputScene() {
     }
     submitted.current = true;
     setPhase("transcript");
-    setMessage("固定問題已送出");
+    setMessage("問題已接下，準備進入站 1。");
     dispatch({ type: "INPUT_CONFIRMED" });
     transferTimer.current = window.setTimeout(() => {
       setPhase("transferring");
@@ -69,16 +70,25 @@ export function InputScene() {
 
   return (
     <div className="scene-shell input-shell">
-      <SceneHeading eyebrow="01 · SEND A QUESTION" title="先把一個問題交給系統。" />
+      <SceneHeading eyebrow="站 0 · INPUT 入口" title="有人問了一個問題。" />
+      <MissionCard
+        station="站 0 · 入口"
+        task="從現在起，你是一個語言模型。你手上的問題不是你的，是上一位觀眾留下的。"
+        steps={[
+          { text: "按住手機上的圓形按鈕", keys: ["按住"], done: phase !== "idle" },
+          { text: "看到「放開送出」再放開", done: phase === "transcript" || phase === "transferring" },
+        ]}
+        learned="接下來你不是問問題的人，而是回答問題的 AI。"
+        showLearned={phase === "transcript" || phase === "transferring"}
+      />
       <div className={`phone-frame phase-${phase}`} data-entry-target="true" data-entry-order="1">
         <div className="phone-speaker" />
         <div className="phone-screen">
           <p className="phone-brand">BEFORE THE ANSWER</p>
           {(phase === "transcript" || phase === "transferring") ? (
             <div className="input-transcript">
-              <span>YOUR QUESTION</span>
+              <span>上一位觀眾的問題</span>
               <strong data-transition-item="true" data-transition-id="input-question" data-transition-role="retained" data-transition-source="dom">{scenario.question}</strong>
-              <small>{scenario.questionZh}</small>
             </div>
           ) : (
             <>

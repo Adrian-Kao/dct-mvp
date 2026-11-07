@@ -13,18 +13,18 @@ export function SummaryScene() {
   );
   return (
     <div className="scene-shell summary-shell">
-      <SceneHeading eyebrow="07 · YOUR PATH" title="What shaped this answer?" />
+      <SceneHeading eyebrow="回顧 · YOUR PATH" title="這個答案是怎麼來的？" />
       <article className="receipt" data-entry-target="true" data-entry-order="1" data-transition-item="true" data-transition-id="summary-receipt" data-transition-role="retained" data-transition-source="dom">
         <header>
-          <span>BEFORE THE ANSWER</span><strong>PATH RECEIPT</strong><small>{presenterPath ? "演示預設路徑" : "本次互動路徑"}</small>
+          <span>BEFORE THE ANSWER</span><strong>路徑收據</strong><small>{presenterPath ? "演示預設路徑" : "本次互動路徑"}</small>
         </header>
         <dl>
-          <div><dt>QUESTION</dt><dd>{scenario.question}</dd></div>
-          <div><dt>EXPLORED</dt><dd>{state.exploredConceptIds.length ? state.exploredConceptIds.join(" · ") : "未選擇"}</dd></div>
-          <div><dt>ATTENTION DIAL</dt><dd>{state.attention.visitedTokenIds.length ? state.attention.visitedTokenIds.map(tokenText).join(" → ") : "未轉動"}</dd></div>
-          <div><dt>STRONGEST LINKS</dt><dd>{links.length ? links.map((link) => `${tokenText(link.fromId)}—${tokenText(link.toId)}`).join(" · ") : "無"}</dd></div>
-          <div><dt>PUMPS</dt><dd>{state.generation.pumpCount}</dd></div>
-          <div><dt>ANSWER ID</dt><dd><code>{answer.answerId}</code></dd></div>
+          <div><dt>問題</dt><dd>{scenario.question}</dd></div>
+          <div><dt>站 2 鎖定的字</dt><dd>{state.vector.lockedTokenIds.length ? state.vector.lockedTokenIds.map(tokenText).join(" · ") : "未鎖定"}</dd></div>
+          <div><dt>站 3 轉盤走過</dt><dd>{state.attention.visitedTokenIds.length ? state.attention.visitedTokenIds.map(tokenText).join(" → ") : "未轉動"}</dd></div>
+          <div><dt>站 3 最強連線</dt><dd>{links.length ? links.map((link) => `${tokenText(link.fromId)}—${tokenText(link.toId)}`).join(" · ") : "無"}</dd></div>
+          <div><dt>站 4 壓泵次數</dt><dd>{state.generation.pumpCount}</dd></div>
+          <div><dt>答案編號</dt><dd><code>{answer.answerId}</code></dd></div>
         </dl>
         <p className="receipt-answer">{answer.fullAnswer}</p>
       </article>

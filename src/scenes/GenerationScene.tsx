@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExperience } from "../app/ExperienceProvider";
 import { selectVisibleAnswer } from "../app/selectors";
+import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
 import type { GuardMeta } from "../app/experienceReducer";
 import type { ScenarioFixture } from "../data/scenarioTypes";
@@ -82,7 +83,18 @@ export function GenerationScene() {
 
   return (
     <div className="scene-shell generation-shell" data-pump-released={releasedCount} data-pump-appended={appendedCount} data-generation-complete={complete}>
-      <SceneHeading eyebrow="05 · GENERATION" title="答案不是一次寫好的。" description="每一個字，都要再跑一次剛剛的所有步驟。" />
+      <SceneHeading eyebrow="站 4 · GENERATION 生成" title="答案不是一次寫好的。" />
+      <MissionCard
+        station="站 4 · 生成"
+        task="用水泵把答案一塊一塊壓出來。每一塊字，都要再跑一次剛剛的所有步驟。"
+        steps={[
+          { text: "按壓水泵", keys: ["Space", "↓"], done: releasedCount > 0 },
+          { text: "水泡浮到水面破掉，字就接到答案後面", done: appendedCount > 0 },
+          { text: "一直壓，直到答案完成；停下來，生成也會停住", done: complete },
+        ]}
+        learned="每一塊字背後都是一整套計算（切字、向量、注意力），而計算需要能源。"
+        showLearned={complete}
+      />
 
       <section className="answer-line" aria-label="答案列" aria-live="polite" data-entry-target="true" data-entry-order="1">
         <p>

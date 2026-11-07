@@ -19,7 +19,7 @@ function shouldUse2D(): boolean {
 }
 
 export default function App() {
-  const { state, dispatch, scenario } = useExperience();
+  const { state } = useExperience();
   const [renderer2d, setRenderer2d] = useState(shouldUse2D);
   const scenes = {
     input: <InputScene key={state.sceneInstanceId} />,
@@ -31,12 +31,10 @@ export default function App() {
     summary: <SummaryScene key={state.sceneInstanceId} />,
   };
   const visual = renderer2d ? (
-    <FallbackStage2D state={state} scenario={scenario} />
+    <FallbackStage2D state={state} />
   ) : (
     <StageCanvas
       state={state}
-      scenario={scenario}
-      onVectorToggle={(conceptId) => dispatch({ type: "VECTOR_TOGGLE", conceptId, scenario })}
       onContextLost={() => setRenderer2d(true)}
     />
   );

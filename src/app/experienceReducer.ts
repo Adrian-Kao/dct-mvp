@@ -1,4 +1,5 @@
 import { keywordsComplete } from "../data/attention";
+import { isAligned, nextLockTarget } from "../data/vectorSpace";
 import type { ScenarioFixture } from "../data/scenarioTypes";
 import type { TransitionMode, TransitionVisualPhase } from "../motion/transitionTypes";
 import type { SceneId } from "./sceneOrder";
@@ -15,7 +16,11 @@ export interface ExperienceState {
   transitionTarget: SceneId | null;
   transitionMode: TransitionMode | null;
   transitionVisualPhase: TransitionVisualPhase;
-  exploredConceptIds: string[];
+  /** Station 2: turntable angle (radians) and the question tokens locked into a constellation. */
+  vector: {
+    angle: number;
+    lockedTokenIds: string[];
+  };
   /** Station 3: the dial pointer and which tokens it has rested on. */
   attention: {
     focusIndex: number;
@@ -41,7 +46,8 @@ export type GuardMeta = { runId: number; sceneInstanceId: number };
 
 export type ExperienceAction =
   | { type: "INPUT_CONFIRMED" }
-  | { type: "VECTOR_TOGGLE"; conceptId: string; scenario: ScenarioFixture }
+  | { type: "VECTOR_ROTATE"; delta: number }
+  | { type: "VECTOR_LOCK"; scenario: ScenarioFixture }
   | { type: "ATTENTION_ROTATE"; delta: 1 | -1; scenario: ScenarioFixture }
   | { type: "ATTENTION_FOCUS"; tokenId: string; scenario: ScenarioFixture }
   | { type: "GENERATION_PUMP"; scenario: ScenarioFixture; meta: GuardMeta }
@@ -62,6 +68,16 @@ function emptyAttention(source: InputSource = "user"): ExperienceState["attentio
   return { focusIndex: 0, visitedTokenIds: [], complete: false, source };
 }
 
+export const VECTOR_START_ANGLE = 1.9;
+
+function emptyVector(): ExperienceState["vector"] {
+  return { angle: VECTOR_START_ANGLE, lockedTokenIds: [] };
+}
+
+function completeVector(scenario: ScenarioFixture): ExperienceState["vector"] {
+  return { angle: 0, lockedTokenIds: scenario.vectorSpace.lockOrder.slice(0, Math.min(3, scenario.vectorSpace.maxLocks)) };
+}
+
 function emptyGeneration(): ExperienceState["generation"] {
   return { pumpCount: 0, releasedCount: 0, appendedCount: 0, complete: false };
 }
@@ -80,9 +96,10 @@ function completeGeneration(scenario: ScenarioFixture): ExperienceState["generat
 function focusToken(state: ExperienceState, scenario: ScenarioFixture, focusIndex: number): ExperienceState {
   const token = scenario.inputTokens[focusIndex];
   if (!token) return state;
-  const visitedTokenIds = state.attention.visitedTokenIds.includes(token.id)
-    ? state.attention.visitedTokenIds
-    : [...state.attention.visitedTokenIds, token.id];
+  // The pointer already rested on its starting token, so leaving it counts as a visit too.
+  const previous = scenario.inputTokens[state.attention.focusIndex];
+  const visitedTokenIds = [...state.attention.visitedTokenIds];
+  for (const id of [previous?.id, token.id]) if (id && !visitedTokenIds.includes(id)) visitedTokenIds.push(id);
   return {
     ...state,
     attention: { ...state.attention, focusIndex, visitedTokenIds, complete: keywordsComplete(scenario, visitedTokenIds), source: "user" },
@@ -100,7 +117,7 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     transitionTarget: "input",
     transitionMode: "entry",
     transitionVisualPhase: "blackHold",
-    exploredConceptIds: [],
+    vector: emptyVector(),
     attention: emptyAttention(),
     generation: emptyGeneration(),
     settings: { quality: "medium", reducedMotion, presenterOpen: false },
@@ -116,18 +133,15 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
     case "INPUT_CONFIRMED":
       if (state.scene !== "input" || state.scenePhase !== "ready") return state;
       return state;
-    case "VECTOR_TOGGLE": { // Purely visual/exploratory state.
+    case "VECTOR_ROTATE": // The big turntable spins the whole star field around its vertical axis.
       if (state.scene !== "vector" || state.scenePhase !== "ready") return state;
-      const valid = action.scenario.vectorNodes.some((node) => node.id === action.conceptId && node.selectable);
-      if (!valid) return state;
-      const selected = state.exploredConceptIds.includes(action.conceptId);
-      if (!selected && state.exploredConceptIds.length >= 2) return state;
-      return {
-        ...state,
-        exploredConceptIds: selected
-          ? state.exploredConceptIds.filter((id) => id !== action.conceptId)
-          : [...state.exploredConceptIds, action.conceptId],
-      };
+      return { ...state, vector: { ...state.vector, angle: state.vector.angle + action.delta } };
+    case "VECTOR_LOCK": { // Lock button: only works when the asked-for token sits in the aiming band.
+      if (state.scene !== "vector" || state.scenePhase !== "ready") return state;
+      const target = nextLockTarget(action.scenario, state.vector.lockedTokenIds);
+      const position = target ? action.scenario.vectorSpace.tokenPositions[target] : undefined;
+      if (!target || !position || !isAligned(position, state.vector.angle)) return state;
+      return { ...state, vector: { ...state.vector, lockedTokenIds: [...state.vector.lockedTokenIds, target] } };
     }
     case "ATTENTION_ROTATE": { // One detent of the station 3 dial.
       if (state.scene !== "attention" || state.scenePhase !== "ready") return state;
@@ -199,18 +213,19 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionTarget: action.scene,
         transitionMode: "entry",
         transitionVisualPhase: "blackHold",
-        exploredConceptIds: [],
+        vector: action.scene === "vector" || action.scene === "input" || action.scene === "tokenization" ? emptyVector() : completeVector(action.scenario),
         attention: needsAttention ? completeAttention(action.scenario, "presenter") : emptyAttention("presenter"),
         generation: needsAnswer ? completeGeneration(action.scenario) : emptyGeneration(),
         settings: { ...state.settings, presenterOpen: false },
       };
     }
     case "REPLAY_SCENE": {
+      const vector = state.scene === "vector" ? emptyVector() : state.vector;
       const attention = state.scene === "attention" ? emptyAttention(state.attention.source) : state.attention;
       const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", attention, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", vector, attention, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

@@ -1,19 +1,15 @@
 import { Canvas } from "@react-three/fiber";
 import { Suspense } from "react";
 import type { ExperienceState } from "../app/experienceReducer";
-import type { ScenarioFixture } from "../data/scenarioTypes";
 import { BackgroundParticles } from "./BackgroundParticles";
 import { qualityConfig } from "./visualConfig";
-import { VectorWorld } from "./VectorWorld";
 
 interface Props {
   state: ExperienceState;
-  scenario: ScenarioFixture;
-  onVectorToggle: (id: string) => void;
   onContextLost: () => void;
 }
 
-export function StageCanvas({ state, scenario, onVectorToggle, onContextLost }: Props) {
+export function StageCanvas({ state, onContextLost }: Props) {
   const quality = qualityConfig[state.settings.quality];
   return (
     <div className="stage-canvas" aria-hidden="true">
@@ -30,16 +26,6 @@ export function StageCanvas({ state, scenario, onVectorToggle, onContextLost }: 
       >
         <Suspense fallback={null}>
           <BackgroundParticles reducedMotion={state.settings.reducedMotion} active={state.scene !== "output" && state.scene !== "summary"} transitionPhase={state.transitionVisualPhase} />
-          {state.scene === "vector" && (
-            <VectorWorld
-              scenario={scenario}
-              selectedIds={state.exploredConceptIds}
-              onToggle={onVectorToggle}
-              resetKey={state.sceneInstanceId}
-              reducedMotion={state.settings.reducedMotion}
-              transitionPhase={state.transitionVisualPhase}
-            />
-          )}
         </Suspense>
       </Canvas>
     </div>

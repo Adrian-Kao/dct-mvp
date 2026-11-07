@@ -24,8 +24,8 @@ describe("core interactions", () => {
     expect(screen.getByRole("complementary", { name: "演示工具" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("場景"), { target: { value: "summary" } });
     fireEvent.click(screen.getByRole("button", { name: "跳至所選場景" }));
-    expect(screen.getByText("PATH RECEIPT")).toBeInTheDocument();
+    expect(screen.getByText("路徑收據")).toBeInTheDocument();
     expect(screen.getByText("演示預設路徑")).toBeInTheDocument();
-    expect(screen.getByText("childhood-answer-v1")).toBeInTheDocument();
+    expect(screen.getByText("missing-someone-answer-v1")).toBeInTheDocument();
   });
 });

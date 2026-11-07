@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { lockNextVectorToken } from "./helpers";
 
 test("complete reduced-motion 2D flow from simulated hold to personal summary", async ({ page }) => {
   await page.goto("/?renderer=2d");
@@ -7,25 +8,36 @@ test("complete reduced-motion 2D flow from simulated hold to personal summary", 
   await page.getByLabel("減少動態").check();
   await page.getByRole("button", { name: "關閉演示工具" }).click();
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle");
+  await expect(page.getByLabel("站 0 · 入口 任務")).toContainText("語言模型");
 
   const hold = page.getByRole("button", { name: "按住提問" });
   await hold.hover();
   await page.mouse.down();
   await page.waitForTimeout(680);
   await page.mouse.up();
-  await expect(page.getByText("Why do humans remember childhood?")).toBeVisible();
+  await expect(page.getByText("為什麼人會想念一個人？")).toBeVisible();
 
-  await expect(page.getByRole("heading", { name: /Explore distance/u })).toBeVisible({ timeout: 6_000 });
-  await page.getByRole("button", { name: "emotion", exact: true }).click();
-  await page.getByRole("button", { name: "family", exact: true }).click();
-  await page.getByRole("button", { name: "繼續到 Attention" }).click();
+  // Station 1: tokens flip to numbers, then the visitor moves on.
+  await expect(page.locator(".token-chip")).toHaveCount(7, { timeout: 6_000 });
+  await page.getByRole("button", { name: "帶著編號前往站 2" }).click();
+
+  // Station 2: arrow keys turn the star field; the lock only works inside the aiming band.
+  await expect(page.getByRole("heading", { name: /意思的星空/u })).toBeVisible({ timeout: 6_000 });
+  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
+  const toStation3 = page.getByRole("button", { name: /前往站 3|才能前進/u });
+  await expect(toStation3).toBeDisabled();
+  await lockNextVectorToken(page);
+  await expect(page.locator(".star-word.is-near")).toHaveCount(3);
+  await expect(page.locator(".mission-learned")).toContainText("「意思」就是「距離」");
+  await lockNextVectorToken(page);
+  await page.getByRole("button", { name: "帶著星座前往站 3" }).click();
 
   // Station 3: the arrow keys stand in for the rotary encoder.
+  await expect(page.locator(".attention-shell")).toBeVisible({ timeout: 6_000 });
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
   const next = page.getByRole("button", { name: "帶著重點前進" });
   await expect(next).toBeDisabled();
-  await page.locator("body").click({ position: { x: 5, y: 300 } });
-  for (let step = 0; step < 4; step += 1) await page.keyboard.press("ArrowRight");
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("ArrowRight");
   await expect(page.locator(".attention-shell")).toHaveAttribute("data-attention-complete", "true");
   await expect(page.locator(".attention-arc.is-strongest")).toHaveCount(3);
   await next.click();
@@ -39,13 +51,14 @@ test("complete reduced-motion 2D flow from simulated hold to personal summary", 
   await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "2", { timeout: 3_000 });
   await page.waitForTimeout(600);
   await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "2");
-  await expect(page.locator(".answer-line")).toContainText("Humans remember");
+  await expect(page.locator(".answer-line")).toContainText("想念一個");
   await page.locator("body").click({ position: { x: 5, y: 300 } });
-  for (let press = 0; press < 30; press += 1) await page.keyboard.press("Space");
+  for (let press = 0; press < 50; press += 1) await page.keyboard.press("Space");
 
-  await expect(page.locator(".answer-card")).toContainText(/Humans remember childhood because early experiences/u, { timeout: 10_000 });
+  await expect(page.locator(".answer-card")).toContainText(/想念一個人，是因為/u, { timeout: 10_000 });
+  await expect(page.locator(".mission-learned")).toContainText("生成答案，不等於理解答案");
   await page.getByRole("button", { name: "查看這次的路徑" }).click();
-  await expect(page.getByText("childhood-answer-v1")).toBeVisible();
-  await expect(page.locator(".receipt")).toContainText("emotion · family");
-  await expect(page.locator(".receipt")).toContainText("childhood—remember");
+  await expect(page.getByText("missing-someone-answer-v1")).toBeVisible();
+  await expect(page.locator(".receipt")).toContainText("想念 · 人");
+  await expect(page.locator(".receipt")).toContainText("人—想念");
 });

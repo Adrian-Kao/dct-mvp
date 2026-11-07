@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useExperience } from "../app/ExperienceProvider";
 import { selectFocusToken, selectStrongestLinks } from "../app/selectors";
+import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
 import { attentionRow } from "../data/attention";
 
@@ -95,7 +96,18 @@ export function AttentionScene() {
 
   return (
     <div className="scene-shell attention-shell" data-attention-complete={complete}>
-      <SceneHeading eyebrow="04 · ATTENTION" title="一句話裡，不是每個字都一樣重要。" />
+      <SceneHeading eyebrow="站 3 · ATTENTION 注意力" title="一句話裡，不是每個字都一樣重要。" />
+      <MissionCard
+        station="站 3 · 注意力"
+        task="轉動轉盤，看看每個字「最在意」句子裡的哪些字。"
+        steps={[
+          { text: "轉動轉盤，讓指針停在一個字上", keys: ["←", "→"], done: state.attention.visitedTokenIds.length > 0 },
+          { text: "看圓餅：格子越大，代表這個字越在意那個字，全部加起來是 100%" },
+          { text: `把關鍵字（${keywords.map((token) => token.text.trim()).join("、")}）都轉過一次`, done: complete },
+        ]}
+        learned="AI 會依前後文把注意力分給每個字。這是算出來的機率，不是理解出來的。"
+        showLearned={complete}
+      />
 
       <div ref={rowRef} className="attention-row" data-entry-target="true" data-entry-order="1">
         <svg className="attention-arcs" viewBox={`0 0 ${geometry.width} ${geometry.height}`} preserveAspectRatio="none" aria-hidden="true">
@@ -115,8 +127,8 @@ export function AttentionScene() {
         <div className="attention-tokens" role="radiogroup" aria-label="注意力焦點">
           {tokens.map((token, index) => {
             const focused = index === state.attention.focusIndex;
-            const keyword = scenario.attention.keywordTokenIds.includes(token.id);
-            const visited = state.attention.visitedTokenIds.includes(token.id);
+            const keyword = keywords.some((item) => item.text === token.text);
+            const visited = state.attention.visitedTokenIds.some((id) => tokens.find((item) => item.id === id)?.text === token.text);
             const weight = weights[index] ?? 0;
             return (
               <button
@@ -170,7 +182,7 @@ export function AttentionScene() {
       <div className="attention-bottom" data-entry-target="true" data-entry-order="3">
         <ul className="attention-keywords" aria-label="關鍵字進度">
           {keywords.map((token) => {
-            const done = state.attention.visitedTokenIds.includes(token.id);
+            const done = state.attention.visitedTokenIds.some((id) => tokens.find((item) => item.id === id)?.text === token.text);
             return <li key={token.id} className={done ? "is-done" : ""}>{done ? "✓" : "○"} {token.text.trim()}</li>;
           })}
         </ul>

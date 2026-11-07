@@ -26,8 +26,9 @@ test("2D Tokenization removes the source sentence and performs black-center-scat
   await expect(page.locator(".tokenization-shell")).toHaveClass(/token-phase-[234]/, { timeout: 4_000 });
   const source = page.locator(".token-question");
   await expect.poll(() => source.evaluate((element) => ({ opacity: getComputedStyle(element).opacity, visibility: getComputedStyle(element).visibility }))).toEqual({ opacity: "0", visibility: "hidden" });
-  await expect(page.locator(".token-chip")).toHaveCount(6);
+  await expect(page.locator(".token-chip")).toHaveCount(7);
   await page.screenshot({ path: `${evidence}/2d-token-00-six-cards-no-source.png`, animations: "allow" });
+  await page.getByRole("button", { name: "帶著編號前往站 2" }).click();
   await frame(page, "compacting", "2d-token-01-compact-at-origins.png");
   await frame(page, "converging", "2d-token-02-six-dots-to-center.png");
   await frame(page, "coreReady", "2d-token-03-one-center-core.png");
@@ -70,7 +71,7 @@ test("Attention dial arcs stay anchored on the token chips after responsive resi
         );
       });
     });
-    expect(errors.length, `${size.width}x${size.height} arc count`).toBe(5);
+    expect(errors.length, `${size.width}x${size.height} arc count`).toBe(6);
     expect(Math.max(...errors), `${size.width}x${size.height}: ${errors.join(",")}`).toBeLessThanOrEqual(3);
   }
 });

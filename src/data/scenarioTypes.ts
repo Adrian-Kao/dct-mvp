@@ -1,6 +1,28 @@
 export interface InputToken {
   id: string;
   text: string;
+  /** Illustrative vocabulary number shown when a cut piece flips over. Same text, same number. */
+  tokenId: number;
+}
+
+export type Vec3 = [number, number, number];
+
+export interface VectorWord {
+  text: string;
+  position: Vec3;
+}
+
+export interface VectorSpaceFixture {
+  /** Order in which station 2 asks the visitor to lock question tokens. */
+  lockOrder: string[];
+  minLocks: number;
+  maxLocks: number;
+  /** How many nearest words get a glowing line when a token is locked. */
+  neighborCount: number;
+  /** Where each question token lands in the star field. Repeated text shares a position. */
+  tokenPositions: Record<string, Vec3>;
+  /** Background star field of faint words. */
+  words: VectorWord[];
 }
 
 export interface AttentionFixture {
@@ -22,17 +44,11 @@ export interface AnswerFixture {
 export interface ScenarioFixture {
   id: string;
   question: string;
-  questionZh: string;
   seed: number;
   tokensAreIllustrative: boolean;
   probabilitiesAreIllustrative: boolean;
   inputTokens: InputToken[];
-  vectorNodes: Array<{
-    id: string;
-    label: string;
-    position: [number, number, number];
-    selectable: boolean;
-  }>;
+  vectorSpace: VectorSpaceFixture;
   attention: AttentionFixture;
   answer: AnswerFixture;
 }

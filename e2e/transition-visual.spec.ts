@@ -83,10 +83,6 @@ async function expectRecordedRightExit(page: Page) {
   expect(maximum).toBeGreaterThan(1);
 }
 
-async function expectPhaseScene(page: Page, phase: string, heading: RegExp) {
-  const values = await page.evaluate(() => (window as typeof window & { __phaseScenes?: Array<{ phase: string; heading: string }> }).__phaseScenes ?? []);
-  expect(values.some((value) => value.phase === phase && heading.test(value.heading)), JSON.stringify(values)).toBe(true);
-}
 
 test("Tokenization converges six local data dots into one central transfer orb before Vector", async ({ page }) => {
   await page.goto("/?renderer=2d");
@@ -94,11 +90,12 @@ test("Tokenization converges six local data dots into one central transfer orb b
   await openPresenterScene(page, "tokenization");
   await startPhaseLog(page);
 
-  await expect(page.locator(".token-chip")).toHaveCount(6);
+  await expect(page.locator(".token-chip")).toHaveCount(7);
   await page.screenshot({ path: `${evidenceRoot}/token-00-six-cards.png`, animations: "allow" });
+  await page.getByRole("button", { name: "帶著編號前往站 2" }).click();
   await capturePhase(page, "converging", "token-02-six-dots-converging.png");
-  await expect(page.locator("[data-retained-dot='true']")).toHaveCount(6);
-  await expect(page.getByRole("heading", { name: /Explore distance/u })).toBeVisible();
+  await expect(page.locator("[data-retained-dot='true']")).toHaveCount(7);
+  await expect(page.getByRole("heading", { name: /意思的星空/u })).toBeVisible();
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle");
   await expectRecordedCoreAtStageCenter(page);
   await expectRecordedRightExit(page);

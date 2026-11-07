@@ -3,6 +3,7 @@ import rawScenario from "../data/scenario.json";
 import { validateScenario } from "../data/validateScenario";
 import { createInitialState, experienceReducer, type ExperienceState } from "../app/experienceReducer";
 import { selectAnswer, selectStrongestLinks, selectVisibleAnswer } from "../app/selectors";
+import { isAligned, nearestWords } from "../data/vectorSpace";
 
 const scenario = validateScenario(rawScenario);
 
@@ -19,6 +20,36 @@ function metaOf(state: ExperienceState) {
   return { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
 }
 
+describe("station 2 star field", () => {
+  function vectorState(): ExperienceState {
+    return finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "vector", scenario }));
+  }
+
+  it("refuses to lock until the asked-for token is turned into the aiming band", () => {
+    let state = vectorState();
+    const target = scenario.vectorSpace.lockOrder[0];
+    expect(isAligned(scenario.vectorSpace.tokenPositions[target], state.vector.angle)).toBe(false);
+    expect(experienceReducer(state, { type: "VECTOR_LOCK", scenario })).toBe(state);
+    let turns = 0;
+    while (!isAligned(scenario.vectorSpace.tokenPositions[target], state.vector.angle) && turns < 80) {
+      state = experienceReducer(state, { type: "VECTOR_ROTATE", delta: 0.12 });
+      turns += 1;
+    }
+    expect(turns).toBeLessThan(80);
+    state = experienceReducer(state, { type: "VECTOR_LOCK", scenario });
+    expect(state.vector.lockedTokenIds).toEqual([target]);
+  });
+
+  it("links a locked word to its nearest stars, with the far-away 黑洞 never among them", () => {
+    for (const id of scenario.vectorSpace.lockOrder) {
+      const near = nearestWords(scenario, id).map((word) => word.text);
+      expect(near).toHaveLength(scenario.vectorSpace.neighborCount);
+      expect(near).not.toContain("黑洞");
+    }
+    expect(nearestWords(scenario, "t04").map((word) => word.text)).toEqual(["記憶", "距離", "愛"]);
+  });
+});
+
 describe("station 3 attention dial", () => {
   it("moves one detent per rotation, wraps around, and records visited tokens", () => {
     let state = sceneState("attention");
@@ -28,20 +59,21 @@ describe("station 3 attention dial", () => {
     state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: 1, scenario });
     state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: 1, scenario });
     expect(state.attention.focusIndex).toBe(1);
-    expect(state.attention.visitedTokenIds).toEqual(["t06", "t01", "t02"]);
+    expect(state.attention.visitedTokenIds).toEqual(["t01", "t07", "t02"]);
     expect(state.attention.complete).toBe(false);
   });
 
   it("completes only after every keyword has been visited, then keeps the three strongest links", () => {
     let state = sceneState("attention");
-    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t03", scenario });
+    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t01", scenario });
     state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t04", scenario });
     expect(state.attention.complete).toBe(false);
-    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t05", scenario });
+    // Either 人 counts: the two tokens are the same word.
+    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t02", scenario });
     expect(state.attention.complete).toBe(true);
     const links = selectStrongestLinks(state, scenario);
     expect(links).toHaveLength(3);
-    expect(links.map((link) => [link.fromId, link.toId].sort().join("|"))).toEqual(["t04|t05", "t03|t04", "t03|t05"]);
+    expect(links[0]).toMatchObject({ fromId: "t04", toId: "t06" });
   });
 
   it("ignores the dial while the scene is not ready", () => {

@@ -23,8 +23,11 @@ export function strongestLinks(scenario: ScenarioFixture, visitedTokenIds: strin
   return [...best.values()].sort((a, b) => b.weight - a.weight).slice(0, count);
 }
 
+/** A keyword counts as visited when any token with the same text was visited (the two 人 are one word). */
 export function keywordsComplete(scenario: ScenarioFixture, visitedTokenIds: string[]): boolean {
-  return scenario.attention.keywordTokenIds.every((id) => visitedTokenIds.includes(id));
+  const textOf = (id: string) => scenario.inputTokens.find((token) => token.id === id)?.text;
+  const visitedTexts = new Set(visitedTokenIds.map(textOf));
+  return scenario.attention.keywordTokenIds.every((id) => visitedTexts.has(textOf(id)));
 }
 
 export function fullAnswer(scenario: ScenarioFixture): string {
