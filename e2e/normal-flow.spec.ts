@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("complete reduced-motion 2D flow from simulated hold to personal summary", async ({ page }) => {
   await page.goto("/?renderer=2d");
+  await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   await page.keyboard.press("d");
   await page.getByLabel("減少動態").check();
   await page.getByRole("button", { name: "關閉演示工具" }).click();
@@ -19,18 +20,32 @@ test("complete reduced-motion 2D flow from simulated hold to personal summary", 
   await page.getByRole("button", { name: "family", exact: true }).click();
   await page.getByRole("button", { name: "繼續到 Attention" }).click();
 
-  await page.getByRole("radio", { name: /emotion/u }).click();
-  await page.locator(".secondary-control").getByRole("button", { name: "family", exact: true }).click();
-  await page.getByRole("button", { name: "讓資訊繼續前進" }).click();
+  // Station 3: the arrow keys stand in for the rotary encoder.
+  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
+  const next = page.getByRole("button", { name: "帶著重點前進" });
+  await expect(next).toBeDisabled();
+  await page.locator("body").click({ position: { x: 5, y: 300 } });
+  for (let step = 0; step < 4; step += 1) await page.keyboard.press("ArrowRight");
+  await expect(page.locator(".attention-shell")).toHaveAttribute("data-attention-complete", "true");
+  await expect(page.locator(".attention-arc.is-strongest")).toHaveCount(3);
+  await next.click();
 
-  await expect(page.getByRole("button", { name: /emotional/u })).toBeEnabled({ timeout: 6_000 });
-  await page.getByRole("button", { name: /emotional/u }).click();
-  await expect(page.getByRole("button", { name: /experiences/u })).toBeEnabled({ timeout: 6_000 });
-  await page.getByRole("button", { name: /experiences/u }).focus();
-  await page.keyboard.press("Enter");
+  // Station 4: every pump releases one bubble; stopping stops generation.
+  await expect(page.getByRole("heading", { name: "答案不是一次寫好的。" })).toBeVisible({ timeout: 6_000 });
+  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
+  const pump = page.getByRole("button", { name: "壓一下" });
+  await pump.click();
+  await pump.click();
+  await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "2", { timeout: 3_000 });
+  await page.waitForTimeout(600);
+  await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "2");
+  await expect(page.locator(".answer-line")).toContainText("Humans remember");
+  await page.locator("body").click({ position: { x: 5, y: 300 } });
+  for (let press = 0; press < 30; press += 1) await page.keyboard.press("Space");
 
-  await expect(page.locator(".answer-card")).toContainText(/emotional experiences can connect/u, { timeout: 10_000 });
+  await expect(page.locator(".answer-card")).toContainText(/Humans remember childhood because early experiences/u, { timeout: 10_000 });
   await page.getByRole("button", { name: "查看這次的路徑" }).click();
-  await expect(page.getByText("emotion:emotional:experiences")).toBeVisible();
+  await expect(page.getByText("childhood-answer-v1")).toBeVisible();
   await expect(page.locator(".receipt")).toContainText("emotion · family");
+  await expect(page.locator(".receipt")).toContainText("childhood—remember");
 });

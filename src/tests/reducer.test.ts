@@ -2,97 +2,103 @@ import { describe, expect, it } from "vitest";
 import rawScenario from "../data/scenario.json";
 import { validateScenario } from "../data/validateScenario";
 import { createInitialState, experienceReducer, type ExperienceState } from "../app/experienceReducer";
+import { selectAnswer, selectStrongestLinks, selectVisibleAnswer } from "../app/selectors";
 
 const scenario = validateScenario(rawScenario);
-
-function predictionState(): ExperienceState {
-  return finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "prediction", routeId: "emotion", scenario }));
-}
 
 function finishEntry(state: ExperienceState): ExperienceState {
   if (state.transitionId === null) return state;
   return experienceReducer(state, { type: "TRANSITION_READY", transitionId: state.transitionId, meta: { runId: state.runId, sceneInstanceId: state.sceneInstanceId } });
 }
 
-describe("experience reducer guards", () => {
-  it("requires a primary attention focus and clears downstream on change", () => {
-    let state: ExperienceState = { ...finishEntry(createInitialState(scenario.id)), scene: "attention" };
-    expect(experienceReducer(state, { type: "ATTENTION_CONFIRM", scenario })).toBe(state);
-    state = experienceReducer(state, { type: "ATTENTION_SET_PRIMARY", primaryId: "emotion", scenario });
-    state = experienceReducer(state, { type: "ATTENTION_SET_SECONDARY", secondaryId: "family", scenario });
-    state = experienceReducer(state, { type: "ATTENTION_CONFIRM", scenario });
-    expect(state.attention.confirmed).toBe(true);
-    state = experienceReducer(state, { type: "ATTENTION_SET_PRIMARY", primaryId: "family", scenario });
-    expect(state.attention.confirmed).toBe(false);
-    expect(state.attention.secondaryId).toBeNull();
-    expect(state.prediction.choices).toEqual([]);
+function sceneState(scene: "attention" | "generation"): ExperienceState {
+  return finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene, scenario }));
+}
+
+function metaOf(state: ExperienceState) {
+  return { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
+}
+
+describe("station 3 attention dial", () => {
+  it("moves one detent per rotation, wraps around, and records visited tokens", () => {
+    let state = sceneState("attention");
+    expect(state.attention.focusIndex).toBe(0);
+    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
+    expect(state.attention.focusIndex).toBe(scenario.inputTokens.length - 1);
+    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: 1, scenario });
+    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: 1, scenario });
+    expect(state.attention.focusIndex).toBe(1);
+    expect(state.attention.visitedTokenIds).toEqual(["t06", "t01", "t02"]);
+    expect(state.attention.complete).toBe(false);
   });
 
-  it("rejects candidates before ready and appends only at the guarded round handoff", () => {
-    let state = predictionState();
-    state = { ...state, prediction: { ...state.prediction, phase: "influx" } };
-    const blocked = experienceReducer(state, { type: "PREDICTION_SELECT", candidateId: "emotional", text: " emotional", scenario });
-    expect(blocked).toBe(state);
-    state = { ...state, prediction: { ...state.prediction, phase: "awaitingChoice" } };
-    state = experienceReducer(state, { type: "PREDICTION_SELECT", candidateId: "emotional", text: " emotional", scenario });
-    const doubleClick = experienceReducer(state, { type: "PREDICTION_SELECT", candidateId: "vivid", text: " vivid", scenario });
-    expect(doubleClick.prediction.pendingCandidateId).toBe("emotional");
-    state = experienceReducer(state, { type: "REQUEST_PREDICTION_TRANSFER" });
-    expect(state.prediction.choices).toEqual([]);
-    expect(state.scenePhase).toBe("exiting");
-    const meta = { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
-    const transitionId = state.transitionId!;
-    state = experienceReducer(state, { type: "PREDICTION_TRANSFER_SWAP", transitionId, meta, scenario });
-    expect(state.prediction.round).toBe(2);
-    expect(state.prediction.choices).toHaveLength(1);
-    expect(state.scene).toBe("prediction");
-    const repeated = experienceReducer(state, { type: "PREDICTION_TRANSFER_SWAP", transitionId, meta, scenario });
-    expect(repeated.prediction.choices).toHaveLength(1);
+  it("completes only after every keyword has been visited, then keeps the three strongest links", () => {
+    let state = sceneState("attention");
+    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t03", scenario });
+    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t04", scenario });
+    expect(state.attention.complete).toBe(false);
+    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t05", scenario });
+    expect(state.attention.complete).toBe(true);
+    const links = selectStrongestLinks(state, scenario);
+    expect(links).toHaveLength(3);
+    expect(links.map((link) => [link.fromId, link.toId].sort().join("|"))).toEqual(["t04|t05", "t03|t04", "t03|t05"]);
   });
 
-  it("keeps stage progress on the first prediction transfer and reaches generation only after round two", () => {
-    let state = predictionState();
-    state = { ...state, prediction: { ...state.prediction, phase: "awaitingChoice" } };
-    state = experienceReducer(state, { type: "PREDICTION_SELECT", candidateId: "emotional", text: " emotional", scenario });
-    state = experienceReducer(state, { type: "REQUEST_PREDICTION_TRANSFER" });
-    const firstTransitionId = state.transitionId!;
-    const firstMeta = { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
-    state = experienceReducer(state, { type: "PREDICTION_TRANSFER_SWAP", transitionId: firstTransitionId, meta: firstMeta, scenario });
-    expect(state.scene).toBe("prediction");
-    expect(state.prediction.round).toBe(2);
-    const secondInstanceMeta = { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
-    state = experienceReducer(state, { type: "TRANSITION_READY", transitionId: firstTransitionId, meta: secondInstanceMeta });
-    state = experienceReducer(state, { type: "PREDICTION_SET_PHASE", phase: "awaitingChoice", meta: secondInstanceMeta });
-    state = experienceReducer(state, { type: "PREDICTION_SELECT", candidateId: "experiences", text: " experiences", scenario });
-    state = experienceReducer(state, { type: "REQUEST_PREDICTION_TRANSFER" });
-    const secondTransitionId = state.transitionId!;
-    const secondMeta = { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
-    state = experienceReducer(state, { type: "PREDICTION_TRANSFER_SWAP", transitionId: secondTransitionId, meta: secondMeta, scenario });
-    expect(state.scene).toBe("generation");
-    expect(state.prediction.choices.map((choice) => choice.candidateId)).toEqual(["emotional", "experiences"]);
+  it("ignores the dial while the scene is not ready", () => {
+    const entering = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "attention", scenario });
+    expect(experienceReducer(entering, { type: "ATTENTION_ROTATE", delta: 1, scenario })).toBe(entering);
+  });
+});
+
+describe("station 4 pump generation", () => {
+  it("releases one bubble per pump and appends tokens only when bubbles pop", () => {
+    let state = sceneState("generation");
+    const meta = metaOf(state);
+    state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
+    state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
+    expect(state.generation).toMatchObject({ pumpCount: 2, releasedCount: 2, appendedCount: 0 });
+    expect(selectVisibleAnswer(state, scenario)).toBe("");
+    state = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index: 0, scenario, meta });
+    expect(selectVisibleAnswer(state, scenario)).toBe(scenario.answer.tokens[0]);
+    const unreleased = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index: 5, scenario, meta });
+    expect(unreleased).toBe(state);
   });
 
-  it("ignores stale run and scene callbacks", () => {
-    const state = predictionState();
-    const changed = experienceReducer(state, { type: "PREDICTION_SET_PHASE", phase: "awaitingChoice", meta: { runId: state.runId - 1, sceneInstanceId: state.sceneInstanceId } });
-    expect(changed).toBe(state);
+  it("stops when pumping stops and finishes the exact answer after the last token", () => {
+    let state = sceneState("generation");
+    const meta = metaOf(state);
+    const total = scenario.answer.tokens.length;
+    for (let index = 0; index < total + 3; index += 1) state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
+    expect(state.generation.releasedCount).toBe(total);
+    expect(selectAnswer(state, scenario)).toBeNull();
+    for (let index = 0; index < total; index += 1) state = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index, scenario, meta });
+    expect(state.generation.complete).toBe(true);
+    expect(selectAnswer(state, scenario)?.fullAnswer).toBe(scenario.answer.tokens.join(""));
+  });
+
+  it("ignores stale pump callbacks from an earlier run or scene", () => {
+    const state = sceneState("generation");
+    const stale = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta: { runId: state.runId - 1, sceneInstanceId: state.sceneInstanceId } });
+    expect(stale).toBe(state);
     const reset = experienceReducer(state, { type: "RESET_EXPERIENCE" });
     expect(reset.runId).toBe(state.runId + 1);
     expect(reset.scene).toBe("input");
-    expect(reset.prediction.choices).toEqual([]);
-    expect(reset.exploredConceptIds).toEqual([]);
+    expect(reset.generation.releasedCount).toBe(0);
+    expect(reset.attention.visitedTokenIds).toEqual([]);
   });
+});
 
-  it("injects complete safe fixtures for downstream presenter jumps", () => {
-    const state = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", routeId: "identity", scenario });
-    expect(state.attention.primaryId).toBe("family");
-    expect(state.prediction.choices.map((choice) => choice.candidateId)).toEqual(["shared", "stories"]);
-    expect(state.prediction.choices.every((choice) => choice.source === "presenter")).toBe(true);
+describe("presenter and restart", () => {
+  it("injects a complete safe path for downstream presenter jumps", () => {
+    const state = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", scenario });
+    expect(state.attention.complete).toBe(true);
+    expect(state.attention.source).toBe("presenter");
     expect(state.generation.complete).toBe(true);
+    expect(selectAnswer(state, scenario)?.answerId).toBe(scenario.answer.id);
   });
 
   it("uses the short restart transition for Summary while emergency reset invalidates it immediately", () => {
-    let state = finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", routeId: "emotion", scenario }));
+    let state = finishEntry(experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", scenario }));
     state = experienceReducer(state, { type: "REQUEST_SUMMARY_RESTART" });
     expect(state).toMatchObject({ scene: "summary", scenePhase: "exiting", transitionMode: "restart", transitionVisualPhase: "locking" });
     const transitionId = state.transitionId!;

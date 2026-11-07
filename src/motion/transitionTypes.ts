@@ -16,7 +16,7 @@ export type TransitionVisualPhase =
   | "centerHold"
   | "expanding";
 
-export type TransitionMode = "scene" | "prediction" | "restart" | "entry";
+export type TransitionMode = "scene" | "restart" | "entry";
 
 export interface TransitionSnapshotItem {
   id: string;
@@ -34,7 +34,6 @@ export interface TransitionSnapshot {
   from: SceneId;
   to: SceneId;
   mode: TransitionMode;
-  predictionRound: 1 | 2 | null;
   width: number;
   height: number;
   center: { x: 0.5; y: 0.5 };

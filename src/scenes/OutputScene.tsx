@@ -11,7 +11,7 @@ export function OutputScene() {
   return (
     <div className="scene-shell output-shell">
       <div data-entry-target="true" data-entry-order="1" data-transition-item="true" data-transition-id="output-question" data-transition-role="retained" data-transition-source="dom">
-        <SceneHeading eyebrow="07 · THE ANSWER" title={scenario.question} description={scenario.questionZh} />
+        <SceneHeading eyebrow="06 · THE ANSWER" title={scenario.question} description={scenario.questionZh} />
       </div>
       <article className="answer-card" data-entry-target="true" data-entry-order="2" data-transition-item="true" data-transition-id="output-answer" data-transition-role="retained" data-transition-source="dom" data-transition-slices="3">
         <p>{answer.fullAnswer}</p>

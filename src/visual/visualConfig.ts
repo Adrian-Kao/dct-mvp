@@ -4,12 +4,6 @@ export const qualityConfig = {
   high: { particles: 2400, pixelRatio: 1.75, nearTrails: true },
 } as const;
 
-export const candidateAnchors = [
-  { x: 0.22, y: 0.62 },
-  { x: 0.5, y: 0.55 },
-  { x: 0.78, y: 0.62 },
-] as const;
-
 export const motionDurations = {
   transfer: {
     selectedHold: 0.22,
@@ -25,6 +19,7 @@ export const motionDurations = {
     chrome: 0.16,
     restartFade: 0.24,
   },
-  predictionRound1: { arrival: 0.5, influx: 1.6, compression: 0.55, distribution: 2.05 },
-  predictionRound2: { arrival: 0.32, influx: 1.02, compression: 0.38, distribution: 1.32 },
+  /** Station 4: seconds a bubble takes to rise from the tank floor to the answer line. */
+  bubbleRise: 1.35,
+  bubbleRiseReduced: 0.3,
 } as const;

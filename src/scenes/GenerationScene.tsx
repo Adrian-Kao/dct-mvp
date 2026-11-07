@@ -1,104 +1,110 @@
-import gsap from "gsap";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExperience } from "../app/ExperienceProvider";
-import { selectAnswer } from "../app/selectors";
+import { selectVisibleAnswer } from "../app/selectors";
 import { SceneHeading } from "../components/SceneHeading";
-import { buildGenerationLoopSteps, loopStepDuration } from "../data/generationLoop";
+import type { GuardMeta } from "../app/experienceReducer";
+import type { ScenarioFixture } from "../data/scenarioTypes";
+import { motionDurations } from "../visual/visualConfig";
 
-export function GenerationScene() {
-  const { state, dispatch, scenario } = useExperience();
-  const answer = selectAnswer(state, scenario);
-  const remainingText = answer?.remainingText ?? "";
-  const [steps] = useState(() => buildGenerationLoopSteps(remainingText));
-  const scope = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const engineRef = useRef<HTMLDivElement>(null);
-  const transferRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLSpanElement>(null);
-  const step = steps[state.generation.stepIndex];
-  const visibleCount = Math.min(answer?.remainingText.length ?? 0, state.generation.visibleCharacterCount);
-  const visible = answer?.remainingText.slice(0, visibleCount) ?? "";
-  const lastAppended = steps.find((item) => item.endCharacter === visibleCount);
+interface BubbleProps {
+  index: number;
+  text: string;
+  riseSeconds: number;
+  meta: GuardMeta;
+  scenario: ScenarioFixture;
+}
 
-  useLayoutEffect(() => {
-    if (state.scenePhase !== "ready" || !remainingText || !step || !scope.current || !trackRef.current || !engineRef.current || !transferRef.current || !measureRef.current) return;
-    const meta = { runId: state.runId, sceneInstanceId: state.sceneInstanceId };
-    const duration = loopStepDuration(step.index, state.settings.reducedMotion);
-    const stageRect = trackRef.current.getBoundingClientRect();
-    const engineRect = engineRef.current.getBoundingClientRect();
-    const targetRect = measureRef.current.getClientRects()[0] ?? measureRef.current.getBoundingClientRect();
-    const startX = engineRect.left + engineRect.width / 2 - stageRect.left;
-    const startY = engineRect.top + engineRect.height / 2 - stageRect.top;
-    const targetX = targetRect.left + Math.min(8, targetRect.width / 2) - stageRect.left;
-    const targetY = targetRect.top + targetRect.height / 2 - stageRect.top;
-    const orb = transferRef.current;
-    const predictRings = scope.current.querySelectorAll(".loop-predict-ring");
-    const feedback = scope.current.querySelector<HTMLElement>(".loop-feedback-route");
-    const resolved = scope.current.querySelector<HTMLElement>(".loop-resolved-dot");
-    gsap.set(orb, { x: startX, y: startY, opacity: 0, scale: 0.35 });
-    gsap.set(resolved, { opacity: 0, scale: 0.3 });
-    const timeline = gsap.timeline();
-    timeline.call(() => dispatch({ type: "GENERATION_SET_PHASE", phase: "context", meta }));
-    timeline.to(feedback, { opacity: 0.45, duration: duration * 0.1 });
-    timeline.call(() => dispatch({ type: "GENERATION_SET_PHASE", phase: "predict", meta }));
-    timeline.fromTo(predictRings, { opacity: 0.12, scale: 0.72 }, { opacity: 0.84, scale: 1, duration: duration * 0.2, stagger: duration * 0.025, ease: "power2.out" });
-    timeline.call(() => dispatch({ type: "GENERATION_SET_PHASE", phase: "resolve", meta }));
-    timeline.to(predictRings, { opacity: 0.16, scale: 0.66, duration: duration * 0.1, stagger: duration * 0.018 });
-    timeline.to(resolved, { opacity: 1, scale: 1, duration: duration * 0.08, ease: "back.out(2)" }, "<");
-    timeline.call(() => dispatch({ type: "GENERATION_SET_PHASE", phase: "send", meta }));
-    timeline.set(orb, { opacity: 1, x: startX, y: startY, scale: 0.55 });
-    timeline.to(orb, { x: targetX, y: targetY, scale: 1, duration: duration * 0.27, ease: "power2.inOut" });
-    timeline.call(() => dispatch({ type: "GENERATION_APPEND_STEP", stepIndex: step.index, visibleCharacterCount: step.endCharacter, meta }));
-    timeline.call(() => dispatch({ type: "GENERATION_SET_PHASE", phase: "append", meta }));
-    timeline.to(orb, { opacity: 0.9, scale: 1.7, duration: duration * 0.06, ease: "power2.out" });
-    timeline.call(() => dispatch({ type: "GENERATION_SET_PHASE", phase: "feedback", meta }));
-    timeline.to(orb, { x: startX, y: startY, opacity: 0.12, scale: 0.4, duration: duration * 0.15, ease: "power2.in" });
-    timeline.to(feedback, { opacity: 0.9, duration: duration * 0.05 });
-    if (step.index === steps.length - 1) {
-      timeline.call(() => dispatch({ type: "GENERATION_COMPLETED", meta }));
-      timeline.to({}, { duration: state.settings.reducedMotion ? 0.16 : 0.8 });
-      timeline.call(() => dispatch({ type: "REQUEST_TRANSITION", target: "output" }));
-    } else {
-      timeline.call(() => dispatch({ type: "GENERATION_ADVANCE_STEP", stepIndex: step.index + 1, meta }));
-    }
-    const handleVisibility = () => document.hidden ? timeline.pause() : timeline.resume();
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => { document.removeEventListener("visibilitychange", handleVisibility); timeline.kill(); };
-  }, [dispatch, remainingText, state.generation.stepIndex, state.runId, state.sceneInstanceId, state.scenePhase, state.settings.reducedMotion, step, steps]);
+/** Deterministic horizontal lane for a bubble, so replays look the same. */
+function laneFor(index: number): number {
+  return 18 + ((index * 37) % 64);
+}
 
-  if (!answer) return <InvalidState />;
-  const beforeHighlight = lastAppended ? visible.slice(0, lastAppended.startCharacter) : visible;
-  const highlighted = lastAppended ? visible.slice(lastAppended.startCharacter) : "";
-  const progress = answer.remainingText.length ? visibleCount / answer.remainingText.length : 1;
+function Bubble({ index, text, riseSeconds, meta, scenario }: BubbleProps) {
+  const { dispatch } = useExperience();
+  useEffect(() => {
+    const timer = window.setTimeout(() => dispatch({ type: "GENERATION_BUBBLE_POP", index, scenario, meta }), riseSeconds * 1000);
+    return () => window.clearTimeout(timer);
+  }, [dispatch, index, meta, riseSeconds, scenario]);
   return (
-    <div ref={scope} className="scene-shell generation-shell" data-loop-phase={state.generation.loopPhase} data-loop-step={state.generation.stepIndex}>
-      <SceneHeading eyebrow="06 · PREDICTION LOOP" title="NOW WATCH IT REPEAT." />
-      <div className="generation-loop-stage" ref={trackRef}>
-        <section className="loop-engine" ref={engineRef} aria-label="固定資料循環引擎" data-entry-target="true" data-entry-order="1" data-transition-item="true" data-transition-id="generation-engine" data-transition-role="chrome" data-transition-source="dom">
-          <div className="loop-context-core"><i /><span>CONTEXT</span></div>
-          <div className="loop-predict-ring ring-a" /><div className="loop-predict-ring ring-b" /><div className="loop-predict-ring ring-c" />
-          <div className="loop-resolved-dot" aria-hidden="true" />
-          <div className="loop-feedback-route" aria-hidden="true" />
-        </section>
-        <section className="loop-text-panel" data-entry-target="true" data-entry-order="2">
-          <article className="generation-copy" data-transition-item="true" data-transition-id="generation-answer" data-transition-role="retained" data-transition-source="dom" data-transition-slices="5">
-            <span className="selected-prefix">{answer.selectedPrefix}</span><span>{beforeHighlight}</span>{highlighted && <mark>{highlighted}</mark>} {!state.generation.complete && <i className="typing-caret" aria-hidden="true" />}
-          </article>
-          {step && <article className="generation-copy loop-measure" aria-hidden="true"><span className="selected-prefix">{answer.selectedPrefix}</span><span>{visible}</span><span ref={measureRef}>{step.rawText}</span></article>}
-        </section>
-        <div className="loop-transfer-dot" ref={transferRef} aria-hidden="true" />
-      </div>
-      <ol className="loop-step-labels" aria-label="循環順序" data-entry-target="true" data-entry-order="3">
-        {(["predict", "send", "append", "feedback"] as const).map((phase, index) => <li key={phase} className={state.generation.loopPhase === phase || (phase === "feedback" && state.generation.loopPhase === "context") ? "is-active" : ""}>{["PREDICT", "APPEND", "UPDATE CONTEXT", "REPEAT"][index]}</li>)}
-      </ol>
-      <div className="generation-meter" aria-hidden="true"><i style={{ width: `${Math.min(100, progress * 100)}%` }} /></div>
-      <p className="interaction-hint">{state.generation.complete ? "完整文字已回流至上下文" : `循環 ${Math.min(state.generation.stepIndex + 1, steps.length)} / ${steps.length}`}</p>
-      {state.generation.complete && <p className="sr-only" aria-live="polite">完整回答：{answer.fullAnswer}</p>}
-    </div>
+    <span className="pump-bubble" data-bubble-index={index} style={{ left: `${laneFor(index)}%`, animationDuration: `${riseSeconds}s` }}>
+      {text.trim() || "·"}
+    </span>
   );
 }
 
-function InvalidState() {
-  const { dispatch } = useExperience();
-  return <div className="scene-shell error-shell" role="alert"><h1>這條路徑尚未完成</h1><p>Generation 需要一個已確認的主焦點和兩次文字選擇。</p><button type="button" className="primary-button" onClick={() => dispatch({ type: "RESET_EXPERIENCE" })}>重新開始</button></div>;
+export function GenerationScene() {
+  const { state, dispatch, scenario } = useExperience();
+  const [pressed, setPressed] = useState(false);
+  const { appendedCount, releasedCount, complete } = state.generation;
+  const visible = selectVisibleAnswer(state, scenario);
+  const ready = state.scenePhase === "ready" && state.scene === "generation";
+  const riseSeconds = state.settings.reducedMotion ? motionDurations.bubbleRiseReduced : motionDurations.bubbleRise;
+  const runId = state.runId;
+  const sceneInstanceId = state.sceneInstanceId;
+  const meta = useMemo<GuardMeta>(() => ({ runId, sceneInstanceId }), [runId, sceneInstanceId]);
+
+  const pump = useCallback(() => {
+    if (!ready || complete) return;
+    dispatch({ type: "GENERATION_PUMP", scenario, meta });
+    setPressed(true);
+    window.setTimeout(() => setPressed(false), 140);
+  }, [complete, dispatch, meta, ready, scenario]);
+
+  // Keyboard stands in for the station 4 hand pump sensor: one key press = one pump.
+  useEffect(() => {
+    if (!ready) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea, button, .presenter-panel")) return;
+      if (event.key === " " || event.key === "ArrowDown") {
+        event.preventDefault();
+        pump();
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [pump, ready]);
+
+  // When the last bubble pops the water goes still, then the answer moves on.
+  useEffect(() => {
+    if (!complete || !ready) return;
+    const timer = window.setTimeout(() => dispatch({ type: "REQUEST_TRANSITION", target: "output" }), state.settings.reducedMotion ? 300 : 1600);
+    return () => window.clearTimeout(timer);
+  }, [complete, dispatch, ready, state.settings.reducedMotion]);
+
+  const inFlight = [];
+  for (let index = appendedCount; index < releasedCount; index += 1) {
+    inFlight.push(<Bubble key={`${sceneInstanceId}-${index}`} index={index} text={scenario.answer.tokens[index]} riseSeconds={riseSeconds} meta={meta} scenario={scenario} />);
+  }
+  const lastToken = appendedCount > 0 ? scenario.answer.tokens[appendedCount - 1] : "";
+  const before = visible.slice(0, visible.length - lastToken.length);
+
+  return (
+    <div className="scene-shell generation-shell" data-pump-released={releasedCount} data-pump-appended={appendedCount} data-generation-complete={complete}>
+      <SceneHeading eyebrow="05 · GENERATION" title="答案不是一次寫好的。" description="每一個字，都要再跑一次剛剛的所有步驟。" />
+
+      <section className="answer-line" aria-label="答案列" aria-live="polite" data-entry-target="true" data-entry-order="1">
+        <p>
+          {before}
+          {lastToken && <mark key={appendedCount} className="answer-new-token">{lastToken}</mark>}
+          {!complete && <i className="typing-caret" aria-hidden="true" />}
+        </p>
+      </section>
+
+      <section className={`pump-tank${inFlight.length ? " is-flowing" : ""}${complete ? " is-still" : ""}`} aria-hidden="true" data-entry-target="true" data-entry-order="2">
+        <div className="pump-water" style={{ ["--flow" as string]: Math.min(1, inFlight.length / 5).toFixed(2) }} />
+        {inFlight}
+      </section>
+
+      <div className="generation-controls" data-entry-target="true" data-entry-order="3">
+        <p className="interaction-hint" role="status">
+          {complete ? "最後一個水泡破掉了，水面平靜下來。" : releasedCount === 0 ? <>按壓水泵，讓下一個字冒出來（鍵盤 <kbd>Space</kbd> 或 <kbd>↓</kbd>）</> : "壓得越快，答案長得越快；停下來，生成也會停住。"}
+        </p>
+        <button type="button" className={`pump-button${pressed ? " is-pressed" : ""}`} disabled={!ready || complete} onClick={pump}>
+          壓一下
+        </button>
+      </div>
+    </div>
+  );
 }

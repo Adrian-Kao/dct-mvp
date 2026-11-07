@@ -28,7 +28,7 @@ function visibleEntryTargets(stage: HTMLElement): HTMLElement[] {
 }
 
 export function TransitionController() {
-  const { state, dispatch, scenario } = useExperience();
+  const { state, dispatch } = useExperience();
   const orbRef = useRef<HTMLDivElement>(null);
   const scope = useRef<HTMLDivElement>(null);
   const [snapshot, setSnapshot] = useState<TransitionSnapshot | null>(null);
@@ -174,8 +174,7 @@ export function TransitionController() {
         setPhase("blackSwap");
         timeline.to(blackout, { opacity: 1, duration: 0.08 * speed, ease: "none" });
         timeline.call(() => {
-          if (activeSnapshot.mode === "prediction") dispatch({ type: "PREDICTION_TRANSFER_SWAP", transitionId, meta: oldMeta, scenario });
-          else dispatch({ type: "TRANSITION_SWAP", target: activeSnapshot.to, transitionId, meta: oldMeta });
+          dispatch({ type: "TRANSITION_SWAP", target: activeSnapshot.to, transitionId, meta: oldMeta });
         });
         appendEntry();
       }

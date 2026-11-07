@@ -10,10 +10,9 @@ async function capturePhase(page: Page, phase: string, filename: string, delayMs
   await page.screenshot({ path: `${evidenceRoot}/${filename}`, animations: "allow" });
 }
 
-async function openPresenterScene(page: Page, scene: string, route = "emotion") {
+async function openPresenterScene(page: Page, scene: string) {
   await page.keyboard.press("d");
   await page.getByLabel("場景").selectOption(scene);
-  await page.getByLabel("安全預設路線").selectOption(route);
   await page.getByRole("button", { name: "跳至所選場景" }).click();
 }
 
@@ -91,6 +90,7 @@ async function expectPhaseScene(page: Page, phase: string, heading: RegExp) {
 
 test("Tokenization converges six local data dots into one central transfer orb before Vector", async ({ page }) => {
   await page.goto("/?renderer=2d");
+  await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   await openPresenterScene(page, "tokenization");
   await startPhaseLog(page);
 
@@ -103,33 +103,4 @@ test("Tokenization converges six local data dots into one central transfer orb b
   await expectRecordedCoreAtStageCenter(page);
   await expectRecordedRightExit(page);
   await expectOrderedPhases(page, ["locking", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold", "expanding", "idle"]);
-});
-
-test("Prediction disperses unselected candidates and transfers one central core in both rounds", async ({ page }) => {
-  await page.goto("/?renderer=2d");
-  await openPresenterScene(page, "prediction", "emotion");
-  await expect(page.getByRole("button", { name: /emotional/u })).toBeEnabled({ timeout: 8_000 });
-  await startPhaseLog(page);
-  await page.screenshot({ path: `${evidenceRoot}/prediction-r1-00-candidates.png`, animations: "allow" });
-  await page.getByRole("button", { name: /emotional/u }).click();
-
-  await capturePhase(page, "resolvingChoice", "prediction-r1-01-unselected-dispersing.png", 340);
-  await expect(page.locator("[data-retained-dot='true']")).toHaveCount(1);
-  await expect(page.locator("[data-discard-particle='true']")).toHaveCount(24);
-  await capturePhase(page, "converging", "prediction-r1-02-selected-converging.png");
-  await expect(page.getByRole("button", { name: /experiences/u })).toBeEnabled({ timeout: 8_000 });
-  await expect(page.locator(".prediction-prefix")).toContainText("emotional");
-  await expectRecordedCoreAtStageCenter(page);
-  await expectRecordedRightExit(page);
-  await expectOrderedPhases(page, ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold", "expanding", "idle"]);
-
-  await startPhaseLog(page);
-  await page.getByRole("button", { name: /experiences/u }).click();
-  await capturePhase(page, "resolvingChoice", "prediction-r2-01-unselected-dispersing.png", 340);
-  await capturePhase(page, "converging", "prediction-r2-02-selected-converging.png");
-  await expect.poll(async () => page.locator("#stage-root").getAttribute("data-transition-phase"), { timeout: 6_000 }).toBe("idle");
-  await expectPhaseScene(page, "expanding", /NOW WATCH IT REPEAT/u);
-  await expectRecordedCoreAtStageCenter(page);
-  await expectRecordedRightExit(page);
-  await expectOrderedPhases(page, ["resolvingChoice", "compacting", "converging", "coreReady", "exiting", "blackSwap", "blackHold", "enteringCore", "centerHold", "expanding", "idle"]);
 });

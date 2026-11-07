@@ -23,10 +23,9 @@ describe("core interactions", () => {
     fireEvent.keyDown(window, { key: "d" });
     expect(screen.getByRole("complementary", { name: "演示工具" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("場景"), { target: { value: "summary" } });
-    fireEvent.change(screen.getByLabelText("安全預設路線"), { target: { value: "cognition" } });
     fireEvent.click(screen.getByRole("button", { name: "跳至所選場景" }));
     expect(screen.getByText("PATH RECEIPT")).toBeInTheDocument();
     expect(screen.getByText("演示預設路徑")).toBeInTheDocument();
-    expect(screen.getByText("cognition:repeated:routines")).toBeInTheDocument();
+    expect(screen.getByText("childhood-answer-v1")).toBeInTheDocument();
   });
 });

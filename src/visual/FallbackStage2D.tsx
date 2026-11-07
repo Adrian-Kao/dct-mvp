@@ -1,14 +1,12 @@
 import type { ExperienceState } from "../app/experienceReducer";
-import type { ChoiceFixture, ScenarioFixture } from "../data/scenarioTypes";
+import type { ScenarioFixture } from "../data/scenarioTypes";
 
 interface Props {
   state: ExperienceState;
   scenario: ScenarioFixture;
-  candidates: ChoiceFixture[];
 }
 
-export function FallbackStage2D({ state, scenario, candidates }: Props) {
-  void candidates;
+export function FallbackStage2D({ state, scenario }: Props) {
   return (
     <div className={`fallback-stage fallback-${state.scene}`} aria-hidden="true">
       <svg viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice">

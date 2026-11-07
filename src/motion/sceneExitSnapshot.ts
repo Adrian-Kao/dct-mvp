@@ -52,7 +52,6 @@ export function captureSceneExitSnapshot(stage: HTMLElement, state: ExperienceSt
     from: state.scene,
     to: state.transitionTarget,
     mode: state.transitionMode,
-    predictionRound: state.scene === "prediction" ? state.prediction.round : null,
     width: stageRect.width,
     height: stageRect.height,
     center: STAGE_CENTER,

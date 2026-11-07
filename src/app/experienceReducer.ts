@@ -1,26 +1,9 @@
-import type { AttentionId, RouteId, ScenarioFixture } from "../data/scenarioTypes";
-import { presenterFixtures } from "../data/presenterFixtures";
+import { keywordsComplete } from "../data/attention";
+import type { ScenarioFixture } from "../data/scenarioTypes";
 import type { TransitionMode, TransitionVisualPhase } from "../motion/transitionTypes";
 import type { SceneId } from "./sceneOrder";
 
-export type PredictionPhase =
-  | "arrival"
-  | "influx"
-  | "compression"
-  | "distribution"
-  | "awaitingChoice"
-  | "commit"
-  | "complete";
-
 export type InputSource = "user" | "presenter" | "autoplay";
-export type GenerationLoopPhase = "context" | "predict" | "resolve" | "send" | "append" | "feedback" | "complete";
-
-export interface PredictionChoice {
-  round: 1 | 2;
-  candidateId: string;
-  text: string;
-  source: InputSource;
-}
 
 export interface ExperienceState {
   scenarioId: string;
@@ -33,22 +16,18 @@ export interface ExperienceState {
   transitionMode: TransitionMode | null;
   transitionVisualPhase: TransitionVisualPhase;
   exploredConceptIds: string[];
+  /** Station 3: the dial pointer and which tokens it has rested on. */
   attention: {
-    primaryId: AttentionId | null;
-    secondaryId: AttentionId | null;
-    confirmed: boolean;
+    focusIndex: number;
+    visitedTokenIds: string[];
+    complete: boolean;
     source: InputSource;
   };
-  prediction: {
-    round: 1 | 2;
-    phase: PredictionPhase;
-    pendingCandidateId: string | null;
-    choices: PredictionChoice[];
-  };
+  /** Station 4: each pump releases one bubble; each popped bubble appends one answer token. */
   generation: {
-    visibleCharacterCount: number;
-    stepIndex: number;
-    loopPhase: GenerationLoopPhase;
+    pumpCount: number;
+    releasedCount: number;
+    appendedCount: number;
     complete: boolean;
   };
   settings: {
@@ -63,35 +42,51 @@ export type GuardMeta = { runId: number; sceneInstanceId: number };
 export type ExperienceAction =
   | { type: "INPUT_CONFIRMED" }
   | { type: "VECTOR_TOGGLE"; conceptId: string; scenario: ScenarioFixture }
-  | { type: "ATTENTION_SET_PRIMARY"; primaryId: AttentionId; scenario: ScenarioFixture }
-  | { type: "ATTENTION_SET_SECONDARY"; secondaryId: AttentionId | null; scenario: ScenarioFixture }
-  | { type: "ATTENTION_CONFIRM"; scenario: ScenarioFixture }
-  | { type: "PREDICTION_SET_PHASE"; phase: PredictionPhase; meta: GuardMeta }
-  | { type: "PREDICTION_SELECT"; candidateId: string; text: string; scenario: ScenarioFixture }
-  | { type: "REQUEST_PREDICTION_TRANSFER" }
-  | { type: "PREDICTION_TRANSFER_SWAP"; transitionId: number; meta: GuardMeta; scenario: ScenarioFixture }
-  | { type: "GENERATION_SET_PHASE"; phase: GenerationLoopPhase; meta: GuardMeta }
-  | { type: "GENERATION_APPEND_STEP"; stepIndex: number; visibleCharacterCount: number; meta: GuardMeta }
-  | { type: "GENERATION_ADVANCE_STEP"; stepIndex: number; meta: GuardMeta }
-  | { type: "GENERATION_COMPLETED"; meta: GuardMeta }
+  | { type: "ATTENTION_ROTATE"; delta: 1 | -1; scenario: ScenarioFixture }
+  | { type: "ATTENTION_FOCUS"; tokenId: string; scenario: ScenarioFixture }
+  | { type: "GENERATION_PUMP"; scenario: ScenarioFixture; meta: GuardMeta }
+  | { type: "GENERATION_BUBBLE_POP"; index: number; scenario: ScenarioFixture; meta: GuardMeta }
   | { type: "REQUEST_TRANSITION"; target: SceneId }
   | { type: "REQUEST_SUMMARY_RESTART" }
   | { type: "TRANSITION_VISUAL_PHASE"; phase: TransitionVisualPhase; transitionId: number; meta: GuardMeta }
   | { type: "TRANSITION_SWAP"; target: SceneId; transitionId: number; meta: GuardMeta }
   | { type: "TRANSITION_READY"; transitionId: number; meta: GuardMeta }
   | { type: "RESET_EXPERIENCE" }
-  | { type: "LOAD_PRESENTER_FIXTURE"; scene: SceneId; routeId: RouteId; scenario: ScenarioFixture }
+  | { type: "LOAD_PRESENTER_FIXTURE"; scene: SceneId; scenario: ScenarioFixture }
   | { type: "REPLAY_SCENE"; scenario: ScenarioFixture }
   | { type: "SET_QUALITY"; quality: ExperienceState["settings"]["quality"] }
   | { type: "SET_REDUCED_MOTION"; reducedMotion: boolean }
   | { type: "TOGGLE_PRESENTER"; open?: boolean };
 
 function emptyAttention(source: InputSource = "user"): ExperienceState["attention"] {
-  return { primaryId: null, secondaryId: null, confirmed: false, source };
+  return { focusIndex: 0, visitedTokenIds: [], complete: false, source };
 }
 
-function emptyPrediction(): ExperienceState["prediction"] {
-  return { round: 1, phase: "arrival", pendingCandidateId: null, choices: [] };
+function emptyGeneration(): ExperienceState["generation"] {
+  return { pumpCount: 0, releasedCount: 0, appendedCount: 0, complete: false };
+}
+
+function completeAttention(scenario: ScenarioFixture, source: InputSource): ExperienceState["attention"] {
+  const ids = scenario.inputTokens.map((token) => token.id);
+  const focusIndex = Math.max(0, ids.indexOf(scenario.attention.keywordTokenIds.at(-1) ?? ids[0]));
+  return { focusIndex, visitedTokenIds: [...scenario.attention.keywordTokenIds], complete: true, source };
+}
+
+function completeGeneration(scenario: ScenarioFixture): ExperienceState["generation"] {
+  const total = scenario.answer.tokens.length;
+  return { pumpCount: total, releasedCount: total, appendedCount: total, complete: true };
+}
+
+function focusToken(state: ExperienceState, scenario: ScenarioFixture, focusIndex: number): ExperienceState {
+  const token = scenario.inputTokens[focusIndex];
+  if (!token) return state;
+  const visitedTokenIds = state.attention.visitedTokenIds.includes(token.id)
+    ? state.attention.visitedTokenIds
+    : [...state.attention.visitedTokenIds, token.id];
+  return {
+    ...state,
+    attention: { ...state.attention, focusIndex, visitedTokenIds, complete: keywordsComplete(scenario, visitedTokenIds), source: "user" },
+  };
 }
 
 export function createInitialState(scenarioId: string, reducedMotion = false): ExperienceState {
@@ -107,27 +102,13 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     transitionVisualPhase: "blackHold",
     exploredConceptIds: [],
     attention: emptyAttention(),
-    prediction: emptyPrediction(),
-    generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
+    generation: emptyGeneration(),
     settings: { quality: "medium", reducedMotion, presenterOpen: false },
   };
 }
 
 function validMeta(state: ExperienceState, meta: GuardMeta): boolean {
   return state.runId === meta.runId && state.sceneInstanceId === meta.sceneInstanceId;
-}
-
-function routeForPrimary(scenario: ScenarioFixture, id: AttentionId | null): RouteId | null {
-  return scenario.attentionOptions.find((option) => option.id === id)?.routeId ?? null;
-}
-
-function currentCandidates(state: ExperienceState, scenario: ScenarioFixture) {
-  const routeId = routeForPrimary(scenario, state.attention.primaryId);
-  const route = scenario.routes.find((item) => item.id === routeId);
-  if (!route) return [];
-  if (state.prediction.round === 1) return route.round1;
-  const firstId = state.prediction.choices.find((choice) => choice.round === 1)?.candidateId;
-  return firstId ? (route.round2ByFirst[firstId] ?? []) : [];
 }
 
 export function experienceReducer(state: ExperienceState, action: ExperienceAction): ExperienceState {
@@ -148,97 +129,28 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
           : [...state.exploredConceptIds, action.conceptId],
       };
     }
-    case "ATTENTION_SET_PRIMARY": {
+    case "ATTENTION_ROTATE": { // One detent of the station 3 dial.
       if (state.scene !== "attention" || state.scenePhase !== "ready") return state;
-      if (!action.scenario.attentionOptions.some((option) => option.id === action.primaryId)) return state;
-      return {
-        ...state,
-        attention: {
-          ...state.attention,
-          primaryId: action.primaryId,
-          secondaryId: state.attention.secondaryId === action.primaryId ? null : state.attention.secondaryId,
-          confirmed: false,
-          source: "user",
-        },
-        prediction: emptyPrediction(),
-        generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
-      };
+      const count = action.scenario.inputTokens.length;
+      return focusToken(state, action.scenario, (state.attention.focusIndex + action.delta + count) % count);
     }
-    case "ATTENTION_SET_SECONDARY": {
+    case "ATTENTION_FOCUS": { // Touch / mouse fallback for the dial.
       if (state.scene !== "attention" || state.scenePhase !== "ready") return state;
-      if (action.secondaryId === state.attention.primaryId) return state;
-      if (action.secondaryId && !action.scenario.attentionOptions.some((option) => option.id === action.secondaryId)) return state;
-      return { ...state, attention: { ...state.attention, secondaryId: action.secondaryId, confirmed: false } };
+      const index = action.scenario.inputTokens.findIndex((token) => token.id === action.tokenId);
+      if (index < 0) return state;
+      return focusToken(state, action.scenario, index);
     }
-    case "ATTENTION_CONFIRM":
-      if (state.scene !== "attention" || state.scenePhase !== "ready" || !routeForPrimary(action.scenario, state.attention.primaryId)) return state;
-      return {
-        ...state,
-        attention: { ...state.attention, confirmed: true },
-        prediction: emptyPrediction(),
-        generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
-      };
-    case "PREDICTION_SET_PHASE":
-      if (!validMeta(state, action.meta) || state.scene !== "prediction" || state.scenePhase !== "ready") return state;
-      if (state.prediction.pendingCandidateId && action.phase !== "commit") return state;
-      return { ...state, prediction: { ...state.prediction, phase: action.phase } };
-    case "PREDICTION_SELECT": { // The reducer is the real interaction lock, not CSS.
-      if (state.scene !== "prediction" || state.scenePhase !== "ready" || state.prediction.phase !== "awaitingChoice" || state.prediction.pendingCandidateId) return state;
-      const candidate = currentCandidates(state, action.scenario).find((item) => item.id === action.candidateId && item.text === action.text);
-      if (!candidate) return state;
-      return { ...state, prediction: { ...state.prediction, pendingCandidateId: candidate.id, phase: "commit" } };
-    }
-    case "REQUEST_PREDICTION_TRANSFER":
-      if (state.scene !== "prediction" || state.scenePhase !== "ready" || state.transitionId !== null || state.prediction.phase !== "commit" || !state.prediction.pendingCandidateId) return state;
-      return {
-        ...state,
-        scenePhase: "exiting",
-        transitionId: state.sceneInstanceId + state.runId * 1000,
-        transitionTarget: state.prediction.round === 1 ? "prediction" : "generation",
-        transitionMode: "prediction",
-        transitionVisualPhase: "locking",
-      };
-    case "PREDICTION_TRANSFER_SWAP": { // The controlled handoff is the only append point.
-      if (!validMeta(state, action.meta) || state.scene !== "prediction" || state.scenePhase !== "exiting" || state.transitionMode !== "prediction" || state.transitionId !== action.transitionId || !state.prediction.pendingCandidateId) return state;
-      const candidate = currentCandidates(state, action.scenario).find((item) => item.id === state.prediction.pendingCandidateId);
-      if (!candidate) return state;
-      const choice: PredictionChoice = {
-        round: state.prediction.round,
-        candidateId: candidate.id,
-        text: candidate.text,
-        source: "user",
-      };
-      if (state.prediction.round === 1) {
-        return {
-          ...state,
-          sceneInstanceId: state.sceneInstanceId + 1,
-          scenePhase: "entering",
-          transitionVisualPhase: "blackSwap",
-          prediction: { round: 2, phase: "arrival", pendingCandidateId: null, choices: [choice] },
-        };
-      }
-      return {
-        ...state,
-        scene: "generation",
-        sceneInstanceId: state.sceneInstanceId + 1,
-        scenePhase: "entering",
-        transitionVisualPhase: "blackSwap",
-        prediction: { ...state.prediction, phase: "complete", pendingCandidateId: null, choices: [...state.prediction.choices, choice] },
-        generation: { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false },
-      };
-    }
-    case "GENERATION_SET_PHASE":
+    case "GENERATION_PUMP": { // One press of the station 4 pump releases one bubble.
       if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete) return state;
-      return { ...state, generation: { ...state.generation, loopPhase: action.phase } };
-    case "GENERATION_APPEND_STEP":
-      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete || action.stepIndex !== state.generation.stepIndex) return state;
-      return { ...state, generation: { ...state.generation, loopPhase: "append", visibleCharacterCount: Math.max(state.generation.visibleCharacterCount, action.visibleCharacterCount) } };
-    case "GENERATION_ADVANCE_STEP":
-      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete || action.stepIndex !== state.generation.stepIndex + 1) return state;
-      return { ...state, generation: { ...state.generation, stepIndex: action.stepIndex, loopPhase: "context" } };
-    case "GENERATION_COMPLETED":
-      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready") return state;
-      return { ...state, generation: { ...state.generation, loopPhase: "complete", complete: true } };
+      if (state.generation.releasedCount >= action.scenario.answer.tokens.length) return state;
+      return { ...state, generation: { ...state.generation, pumpCount: state.generation.pumpCount + 1, releasedCount: state.generation.releasedCount + 1 } };
+    }
+    case "GENERATION_BUBBLE_POP": { // A bubble reached the surface: its token joins the answer, in order.
+      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete) return state;
+      if (action.index < state.generation.appendedCount || action.index >= state.generation.releasedCount) return state;
+      const appendedCount = action.index + 1;
+      return { ...state, generation: { ...state.generation, appendedCount, complete: appendedCount >= action.scenario.answer.tokens.length } };
+    }
     case "REQUEST_TRANSITION":
       if (state.scenePhase !== "ready" || state.transitionId !== null || action.target === state.scene) return state;
       return {
@@ -275,15 +187,8 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...fresh, runId, sceneInstanceId, transitionId: runId * 1000 + sceneInstanceId, settings: { ...state.settings, presenterOpen: false } };
     }
     case "LOAD_PRESENTER_FIXTURE": {
-      const fixture = presenterFixtures[action.routeId];
-      const downstream = ["generation", "output", "summary"].includes(action.scene);
-      const choices: PredictionChoice[] = downstream
-        ? [
-            { round: 1, candidateId: fixture.firstId, text: action.scenario.routes.find((route) => route.id === fixture.routeId)?.round1.find((item) => item.id === fixture.firstId)?.text ?? "", source: "presenter" },
-            { round: 2, candidateId: fixture.secondId, text: action.scenario.routes.find((route) => route.id === fixture.routeId)?.round2ByFirst[fixture.firstId]?.find((item) => item.id === fixture.secondId)?.text ?? "", source: "presenter" },
-          ]
-        : [];
-      const needsAttention = ["prediction", "generation", "output", "summary"].includes(action.scene);
+      const needsAttention = ["generation", "output", "summary"].includes(action.scene);
+      const needsAnswer = action.scene === "output" || action.scene === "summary";
       return {
         ...state,
         runId: state.runId + 1,
@@ -295,29 +200,17 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionMode: "entry",
         transitionVisualPhase: "blackHold",
         exploredConceptIds: [],
-        attention: needsAttention
-          ? { primaryId: fixture.primaryId, secondaryId: null, confirmed: true, source: "presenter" }
-          : emptyAttention("presenter"),
-        prediction: downstream
-          ? { round: 2, phase: "complete", pendingCandidateId: null, choices }
-          : emptyPrediction(),
-        generation: {
-          visibleCharacterCount: action.scene === "output" || action.scene === "summary" ? Number.MAX_SAFE_INTEGER : 0,
-          stepIndex: 0,
-          loopPhase: action.scene === "output" || action.scene === "summary" ? "complete" : "context",
-          complete: action.scene === "output" || action.scene === "summary",
-        },
+        attention: needsAttention ? completeAttention(action.scenario, "presenter") : emptyAttention("presenter"),
+        generation: needsAnswer ? completeGeneration(action.scenario) : emptyGeneration(),
         settings: { ...state.settings, presenterOpen: false },
       };
     }
     case "REPLAY_SCENE": {
-      let prediction = state.prediction;
-      let generation = state.generation;
-      if (state.scene === "prediction") prediction = emptyPrediction();
-      if (state.scene === "generation") generation = { visibleCharacterCount: 0, stepIndex: 0, loopPhase: "context", complete: false };
+      const attention = state.scene === "attention" ? emptyAttention(state.attention.source) : state.attention;
+      const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", prediction, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", attention, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

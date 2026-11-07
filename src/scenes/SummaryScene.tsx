@@ -1,18 +1,19 @@
 import { useExperience } from "../app/ExperienceProvider";
-import { selectAnswer } from "../app/selectors";
+import { selectAnswer, selectStrongestLinks } from "../app/selectors";
 import { SceneHeading } from "../components/SceneHeading";
 
 export function SummaryScene() {
   const { state, dispatch, scenario } = useExperience();
   const answer = selectAnswer(state, scenario);
-  const optionLabel = (id: string | null) => scenario.attentionOptions.find((item) => item.id === id)?.label ?? "未選擇";
-  const presenterPath = state.attention.source === "presenter" || state.prediction.choices.some((choice) => choice.source === "presenter");
+  const tokenText = (id: string) => scenario.inputTokens.find((token) => token.id === id)?.text.trim() ?? id;
+  const links = selectStrongestLinks(state, scenario);
+  const presenterPath = state.attention.source === "presenter";
   if (!answer) return (
     <div className="scene-shell error-shell"><h1>路徑紀錄不完整</h1><button type="button" onClick={() => dispatch({ type: "RESET_EXPERIENCE" })}>重新開始</button></div>
   );
   return (
     <div className="scene-shell summary-shell">
-      <SceneHeading eyebrow="08 · YOUR PATH" title="What shaped this answer?" />
+      <SceneHeading eyebrow="07 · YOUR PATH" title="What shaped this answer?" />
       <article className="receipt" data-entry-target="true" data-entry-order="1" data-transition-item="true" data-transition-id="summary-receipt" data-transition-role="retained" data-transition-source="dom">
         <header>
           <span>BEFORE THE ANSWER</span><strong>PATH RECEIPT</strong><small>{presenterPath ? "演示預設路徑" : "本次互動路徑"}</small>
@@ -20,10 +21,9 @@ export function SummaryScene() {
         <dl>
           <div><dt>QUESTION</dt><dd>{scenario.question}</dd></div>
           <div><dt>EXPLORED</dt><dd>{state.exploredConceptIds.length ? state.exploredConceptIds.join(" · ") : "未選擇"}</dd></div>
-          <div><dt>PRIMARY FOCUS</dt><dd>{optionLabel(state.attention.primaryId)}</dd></div>
-          <div><dt>SECONDARY FOCUS</dt><dd>{optionLabel(state.attention.secondaryId)}</dd></div>
-          <div><dt>PREDICTION 01</dt><dd>{state.prediction.choices.find((choice) => choice.round === 1)?.text.trim() ?? "未選擇"}</dd></div>
-          <div><dt>PREDICTION 02</dt><dd>{state.prediction.choices.find((choice) => choice.round === 2)?.text.trim() ?? "未選擇"}</dd></div>
+          <div><dt>ATTENTION DIAL</dt><dd>{state.attention.visitedTokenIds.length ? state.attention.visitedTokenIds.map(tokenText).join(" → ") : "未轉動"}</dd></div>
+          <div><dt>STRONGEST LINKS</dt><dd>{links.length ? links.map((link) => `${tokenText(link.fromId)}—${tokenText(link.toId)}`).join(" · ") : "無"}</dd></div>
+          <div><dt>PUMPS</dt><dd>{state.generation.pumpCount}</dd></div>
           <div><dt>ANSWER ID</dt><dd><code>{answer.answerId}</code></dd></div>
         </dl>
         <p className="receipt-answer">{answer.fullAnswer}</p>

@@ -48,9 +48,9 @@ export function StageFrame({ children, renderer2d, visual, transfer }: Props) {
           <span className="brand-mark" aria-hidden="true" />
           <span>BEFORE THE ANSWER</span>
         </div>
-        <div className="stage-progress" aria-label={`第 ${stageIndex} 幕，共 8 幕`}>
+        <div className="stage-progress" aria-label={`第 ${stageIndex} 幕，共 ${sceneOrder.length} 幕`}>
           <span>{sceneLabels[state.scene]}</span>
-          <strong>{String(stageIndex).padStart(2, "0")} <i>/ 08</i></strong>
+          <strong>{String(stageIndex).padStart(2, "0")} <i>/ {String(sceneOrder.length).padStart(2, "0")}</i></strong>
         </div>
         <div className="header-actions">
           <button ref={infoButton} type="button" onClick={() => setInfoOpen(true)}>關於這個示意</button>
