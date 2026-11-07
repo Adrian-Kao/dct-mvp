@@ -231,7 +231,7 @@ export default function AdminApp() {
       </section>
 
       <section className="admin-card">
-        <h2><span>站 3</span>接龍轉盤：每一輪的候選詞和機率</h2>
+        <h2><span>站 3</span>注意力轉盤：每一輪的候選詞和機率</h2>
         <p className="admin-hint">第 1 輪抽答案的第 1 個詞，以此類推；黃底那一格是答案真正的下一個詞，不能刪。機率存檔時會自動調成加起來 100%。「因為注意到」會讓問題裡那個字發光，說明機率從哪來。</p>
         <label className="admin-inline">轉幾輪
           <select value={draft.prediction.rounds.length} onChange={(event) => setRoundCount(Number(event.target.value))}>

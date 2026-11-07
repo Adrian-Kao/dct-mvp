@@ -6,7 +6,7 @@ const stations: Array<{ scene: SceneId; label: string }> = [
   { scene: "input", label: "入口" },
   { scene: "tokenization", label: "切字" },
   { scene: "vector", label: "向量" },
-  { scene: "attention", label: "接龍" },
+  { scene: "attention", label: "注意力" },
   { scene: "generation", label: "生成" },
   { scene: "output", label: "輸出" },
 ];

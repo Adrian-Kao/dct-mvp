@@ -85,9 +85,9 @@ export function PredictionScene() {
 
   return (
     <div className="scene-shell prediction-shell" data-prediction-round={round} data-prediction-complete={complete} data-prediction-spinning={spinning}>
-      <SceneHeading eyebrow="站 3 · ATTENTION → 接龍" title="下一個詞，是抽出來的。" />
+      <SceneHeading eyebrow="站 3 · ATTENTION 注意力" title="下一個詞，是抽出來的。" />
       <MissionCard
-        station="站 3 · 接龍"
+        station="站 3 · 注意力"
         task={<>AI 不是想好整句話才說，而是<b>一次抽一個詞</b>。轉盤上每一格是一個候選詞，格子越大、機率越高。</>}
         steps={[
           { text: "看轉盤：每一格是一個候選詞和它的機率" },

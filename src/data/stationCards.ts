@@ -15,12 +15,12 @@ const STATIONS: Partial<Record<SceneId, { number: number; name: string }>> = {
   input: { number: 0, name: "入口" },
   tokenization: { number: 1, name: "切字" },
   vector: { number: 2, name: "向量" },
-  attention: { number: 3, name: "接龍" },
+  attention: { number: 3, name: "注意力" },
   generation: { number: 4, name: "生成" },
   output: { number: 5, name: "輸出" },
 };
 
-export const STATION_DOTS = ["入口", "切字", "向量", "接龍", "生成", "輸出"];
+export const STATION_DOTS = ["入口", "切字", "向量", "注意力", "生成", "輸出"];
 
 const INTRO: Partial<Record<SceneId, { title: string; lines: string[] }>> = {
   input: { title: "成為 AI", lines: ["站到鏡頭前，系統會把你掃描成一個節點組成的影像。", "掃描完成後，你就是一個語言模型，要替上一位觀眾回答問題。"] },
