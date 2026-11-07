@@ -27,6 +27,7 @@ export function PresenterPanel() {
         <button type="button" onClick={() => dispatch({ type: "RESET_EXPERIENCE" })}>重新開始</button>
       </div>
       <QualityControls />
+      <a className="ghost-button admin-link" href="?admin" target="_blank" rel="noopener">開啟後台（換題目、改每一站）</a>
       <p className="panel-note">快捷鍵 D 開／關。直接跳到後段會使用演示預設路徑，並在 Summary 清楚標示。</p>
     </aside>
   );
