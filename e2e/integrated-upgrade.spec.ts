@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { sliceSentence } from "./helpers";
 
 const evidence = "artifacts/integrated-upgrade";
 
@@ -23,7 +24,7 @@ test("2D Tokenization removes the source sentence and performs black-center-scat
   await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   await openScene(page, "tokenization");
   await waitPhase(page, "idle");
-  await expect(page.locator(".tokenization-shell")).toHaveClass(/token-phase-[234]/, { timeout: 4_000 });
+  await sliceSentence(page);
   const source = page.locator(".token-question");
   await expect.poll(() => source.evaluate((element) => ({ opacity: getComputedStyle(element).opacity, visibility: getComputedStyle(element).visibility }))).toEqual({ opacity: "0", visibility: "hidden" });
   await expect(page.locator(".token-chip")).toHaveCount(7);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { sliceSentence } from "./helpers";
 
 const evidenceRoot = "artifacts/integrated-upgrade/legacy-regression";
 
@@ -88,6 +89,7 @@ test("Tokenization converges six local data dots into one central transfer orb b
   await page.goto("/?renderer=2d");
   await page.waitForFunction(() => document.activeElement?.tagName === "H1");
   await openPresenterScene(page, "tokenization");
+  await sliceSentence(page);
   await startPhaseLog(page);
 
   await expect(page.locator(".token-chip")).toHaveCount(7);

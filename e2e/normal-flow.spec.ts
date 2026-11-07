@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { lockNextVectorToken } from "./helpers";
+import { lockNextVectorToken, sliceSentence } from "./helpers";
 
 test("complete reduced-motion 2D flow from entrance scan to personal summary", async ({ page }) => {
   await page.goto("/?renderer=2d");
@@ -26,8 +26,12 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   await expect(page.locator(".progress-avatar")).toBeVisible();
   await expect(page.locator(".progress-band")).toHaveAttribute("data-progress-station", "tokenization");
 
-  // Station 1: tokens flip to numbers, then the visitor moves on.
-  await expect(page.locator(".token-chip")).toHaveCount(7, { timeout: 6_000 });
+  // Station 1: slash the sentence; it only splits at the tokenizer's cut points.
+  const toStation2 = page.getByRole("button", { name: /還有 6 刀/u });
+  await expect(toStation2).toBeDisabled();
+  await sliceSentence(page);
+  await expect(page.locator(".token-chip")).toHaveCount(7);
+  await expect(page.getByLabel("「想念」→ 編號 117215")).toBeVisible();
   await page.getByRole("button", { name: "帶著編號前往站 2" }).click();
 
   // Station 2: arrow keys turn the star field; the lock only works inside the aiming band.
