@@ -4,6 +4,7 @@ import { validateScenario } from "../data/validateScenario";
 import { configureCards, createInitialState, experienceReducer, type ExperienceState } from "../app/experienceReducer";
 import { selectAnswer, selectVisibleAnswer } from "../app/selectors";
 import { isAligned, nearestWords } from "../data/vectorSpace";
+import { linksFrom, strongestLink } from "../data/attention";
 
 const scenario = validateScenario(rawScenario);
 
@@ -50,11 +51,43 @@ describe("station 2 star field", () => {
   });
 });
 
-describe("station 3 probability wheel", () => {
+describe("station 3 attention guessing", () => {
+  const keywords = scenario.attention.keywordTokenIds;
+
+  it("records a guess, reveals the strongest link, then moves to the next word until all are found", () => {
+    let state = sceneState("attention");
+    expect(state.attention).toMatchObject({ round: 0, revealed: false, complete: false });
+    // The focus word cannot be its own guess.
+    expect(experienceReducer(state, { type: "ATTENTION_GUESS", scenario, tokenId: keywords[0] })).toBe(state);
+    expect(experienceReducer(state, { type: "ATTENTION_NEXT", scenario })).toBe(state);
+    state = experienceReducer(state, { type: "ATTENTION_GUESS", scenario, tokenId: "t03" });
+    expect(state.attention.revealed).toBe(true);
+    expect(state.attention.guesses[0]).toMatchObject({ focusId: "t04", guessId: "t03", strongestId: "t06", correct: false });
+    expect(experienceReducer(state, { type: "ATTENTION_GUESS", scenario, tokenId: "t06" })).toBe(state);
+    state = experienceReducer(state, { type: "ATTENTION_NEXT", scenario });
+    expect(state.attention).toMatchObject({ round: 1, revealed: false });
+    state = experienceReducer(state, { type: "ATTENTION_GUESS", scenario, tokenId: "t04" });
+    expect(state.attention.guesses[1]).toMatchObject({ focusId: "t01", strongestId: "t04", correct: true });
+    state = experienceReducer(state, { type: "ATTENTION_NEXT", scenario });
+    state = experienceReducer(state, { type: "ATTENTION_GUESS", scenario, tokenId: "t04" });
+    state = experienceReducer(state, { type: "ATTENTION_NEXT", scenario });
+    expect(state.attention.complete).toBe(true);
+    expect(state.attention.guesses.map((guess) => guess.strongestId)).toEqual(["t06", "t04", "t04"]);
+  });
+
+  it("measures link strength without the word's look at itself", () => {
+    const links = linksFrom(scenario, "t04");
+    expect(links.some((link) => link.tokenId === "t04")).toBe(false);
+    expect(links.reduce((sum, link) => sum + link.weight, 0)).toBeCloseTo(1);
+    expect(strongestLink(scenario, "t04")).toMatchObject({ text: "人", tokenId: "t06" });
+  });
+});
+
+describe("station 4 probability wheel", () => {
   const indexOf = (round: number, text: string) => scenario.prediction.rounds[round].candidates.findIndex((candidate) => candidate.text === text);
 
   it("keeps a drawn word only when it is the answer's next word; a miss means spin again", () => {
-    let state = sceneState("attention");
+    let state = sceneState("generation");
     expect(state.prediction).toMatchObject({ round: 0, complete: false });
     state = experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex: indexOf(0, "因為"), greedy: false });
     expect(state.prediction).toMatchObject({ round: 0, missesThisRound: 1 });
@@ -68,18 +101,33 @@ describe("station 3 probability wheel", () => {
   });
 
   it("ignores the wheel while the scene is not ready", () => {
-    const entering = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "attention", scenario });
+    const entering = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "generation", scenario });
     expect(experienceReducer(entering, { type: "PREDICTION_PICK", scenario, candidateIndex: 0, greedy: false })).toBe(entering);
   });
 });
 
+/** Station 4 starts with the wheel; the pump only works once its opening words are drawn. */
+function pumpState(): ExperienceState {
+  let state = sceneState("generation");
+  scenario.prediction.rounds.forEach((round, index) => {
+    const candidateIndex = round.candidates.findIndex((candidate) => candidate.text === scenario.answer.tokens[index]);
+    state = experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex, greedy: false });
+  });
+  return state;
+}
+
 describe("station 4 pump generation", () => {
+  it("keeps the pump locked until the wheel has drawn the opening words", () => {
+    const state = sceneState("generation");
+    expect(experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta: metaOf(state) })).toBe(state);
+  });
+
   it("releases one bubble per pump and appends tokens only when bubbles pop", () => {
-    let state = sceneState("generation");
+    let state = pumpState();
     const meta = metaOf(state);
     state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
     state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
-    // The first words were already drawn on the station 3 wheel.
+    // The first words were already drawn on the wheel.
     const drawn = scenario.prediction.rounds.length;
     expect(state.generation).toMatchObject({ pumpCount: 2, releasedCount: drawn + 2, appendedCount: drawn });
     expect(selectVisibleAnswer(state, scenario)).toBe(scenario.answer.tokens.slice(0, drawn).join(""));
@@ -90,7 +138,7 @@ describe("station 4 pump generation", () => {
   });
 
   it("stops when pumping stops and finishes the exact answer after the last token", () => {
-    let state = sceneState("generation");
+    let state = pumpState();
     const meta = metaOf(state);
     const total = scenario.answer.tokens.length;
     for (let index = 0; index < total + 3; index += 1) state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });

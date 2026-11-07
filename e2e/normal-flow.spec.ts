@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { lockNextVectorToken, sliceSentence, spinAllRounds } from "./helpers";
+import { guessAllLinks, lockNextVectorToken, sliceSentence, spinAllRounds } from "./helpers";
 
 test("complete reduced-motion 2D flow from entrance scan to personal summary", async ({ page }) => {
   await page.goto("/?renderer=2d");
@@ -45,18 +45,33 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   await lockNextVectorToken(page);
   await page.getByRole("button", { name: "帶著星座前往站 3" }).click();
 
-  // Station 3: Space spins the probability wheel; each kept word joins the answer.
+  // Station 3: guess which word the glowing word cares about most, then see every link's strength.
+  const attention = page.locator(".attention-shell");
+  await expect(attention).toBeVisible({ timeout: 6_000 });
+  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
+  await expect(page.locator(".attention-prompt")).toContainText("「想念」最在意問題裡的哪個字？");
+  await page.getByRole("button", { name: "會，編號 5310" }).click();
+  await expect(attention).toHaveAttribute("data-attention-revealed", "true");
+  await expect(page.getByRole("status")).toContainText("它最在意的是「人」（43%）");
+  await expect(page.locator(".attention-link")).toHaveCount(6);
+  await expect(page.locator(".chip-badge.is-strongest")).toHaveText("43%");
+  await guessAllLinks(page);
+  // 想念→人 and 人→想念 share one arc on the relation map.
+  await expect(page.locator(".attention-link.is-strongest")).toHaveCount(2);
+  await expect(page.locator(".attention-board")).toContainText("想念→人 43% · 人→想念 42%");
+  await page.getByRole("button", { name: "帶著關係線前往站 4" }).click();
+
+  // Station 4: first the wheel draws the opening words.
   await expect(page.locator(".prediction-shell")).toBeVisible({ timeout: 6_000 });
-  const next = page.getByRole("button", { name: "帶著開頭前往站 4" });
-  await expect(next).toBeDisabled();
+  const startPump = page.getByRole("button", { name: "開始壓泵" });
+  await expect(startPump).toBeDisabled();
   await expect(page.getByLabel("候選詞與機率")).toContainText("想念");
   await spinAllRounds(page);
   await expect(page.getByLabel("答案", { exact: true })).toContainText("想念一個人");
-  await next.click();
+  await startPump.click();
 
-  // Station 4: every pump releases one bubble; stopping stops generation.
+  // Then every pump releases one bubble; stopping stops generation.
   await expect(page.getByRole("heading", { name: "答案不是一次寫好的。" })).toBeVisible({ timeout: 6_000 });
-  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
   const pump = page.getByRole("button", { name: "壓一下" });
   await pump.click();
   await pump.click();
@@ -74,5 +89,6 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   await page.getByRole("button", { name: "查看這次的路徑" }).click();
   await expect(page.getByText("missing-someone-answer-v1")).toBeVisible();
   await expect(page.locator(".receipt")).toContainText("想念 · 人");
-  await expect(page.locator(".receipt")).toContainText("站 3 轉盤抽到");
+  await expect(page.locator(".receipt")).toContainText("想念→人");
+  await expect(page.locator(".receipt")).toContainText("站 4 轉盤抽到");
 });

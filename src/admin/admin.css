@@ -36,3 +36,4 @@ html.admin-page, html.admin-page body, html.admin-page #root { height: auto; min
 .admin-round h3 b { color: var(--choice); }
 .admin-round tr.is-answer td { background: rgba(var(--choice-rgb),.1); }
 .admin-round input[type="number"] { width: 80px !important; }
+.admin-check { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: #ffd28a; font-size: 12px; }

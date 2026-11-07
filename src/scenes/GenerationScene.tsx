@@ -92,8 +92,8 @@ export function GenerationScene() {
     <div className="scene-shell generation-shell" data-pump-released={releasedCount} data-pump-appended={appendedCount} data-generation-complete={complete}>
       <SceneHeading eyebrow="站 4 · GENERATION 生成" title="答案不是一次寫好的。" />
       <MissionCard
-        station="站 4 · 生成"
-        task={`開頭的「${scenario.answer.tokens.slice(0, scenario.prediction.rounds.length).join("")}」是你在站 3 抽出來的。剩下的用水泵一塊一塊壓出來：每一塊字，都要再跑一次剛剛的所有步驟。`}
+        station="站 4 · 生成（2/2 壓泵）"
+        task={`開頭的「${scenario.answer.tokens.slice(0, scenario.prediction.rounds.length).join("")}」是你剛剛用轉盤抽出來的。剩下的用水泵一塊一塊壓出來：每一塊字，都要再跑一次剛剛的所有步驟。`}
         steps={[
           { text: "按壓水泵", keys: ["Space", "↓"], done: state.generation.pumpCount > 0 },
           { text: "水泡浮到水面破掉，字就接到答案後面", done: state.generation.pumpCount > 0 && appendedCount > scenario.prediction.rounds.length },

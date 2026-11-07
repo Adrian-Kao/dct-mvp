@@ -27,7 +27,8 @@ describe("back office: build a scenario from a new question", () => {
     expect(scenario.vectorSpace.lockOrder.length).toBeGreaterThanOrEqual(2);
     const hits = clueHits(answer, cluesFor(scenario, scenario.vectorSpace.lockOrder));
     expect(hits.length).toBeGreaterThanOrEqual(3);
-    expect(scenario.attention).toBeUndefined();
+    expect(scenario.attention.keywordTokenIds.length).toBeGreaterThan(0);
+    Object.values(scenario.attention.weights).forEach((row) => expect(row.reduce((sum, value) => sum + value, 0)).toBeCloseTo(1));
     scenario.prediction.rounds.forEach((round, index) => {
       expect(round.candidates[0].text).toBe(scenario.answer.tokens[index]);
       expect(round.candidates[0].probability).toBeGreaterThan(0.5);

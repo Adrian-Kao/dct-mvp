@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AttentionScene } from "../scenes/AttentionScene";
 import { useExperience } from "./ExperienceProvider";
 import { StageFrame } from "../components/StageFrame";
 import { StationCard } from "../components/StationCard";
@@ -19,6 +20,13 @@ function shouldUse2D(): boolean {
   return typeof window.WebGLRenderingContext === "undefined";
 }
 
+/** Station 4: first the probability wheel draws the opening words, then the pump grows the rest. */
+function GenerationStation() {
+  const { state } = useExperience();
+  const [pumping, setPumping] = useState(state.prediction.complete);
+  return pumping ? <GenerationScene /> : <PredictionScene onDone={() => setPumping(true)} />;
+}
+
 export default function App() {
   const { state } = useExperience();
   const [renderer2d, setRenderer2d] = useState(shouldUse2D);
@@ -26,8 +34,8 @@ export default function App() {
     input: <InputScene key={state.sceneInstanceId} />,
     tokenization: <TokenizationScene key={state.sceneInstanceId} />,
     vector: <VectorScene key={state.sceneInstanceId} />,
-    attention: <PredictionScene key={state.sceneInstanceId} />,
-    generation: <GenerationScene key={state.sceneInstanceId} />,
+    attention: <AttentionScene key={state.sceneInstanceId} />,
+    generation: <GenerationStation key={state.sceneInstanceId} />,
     output: <OutputScene key={state.sceneInstanceId} />,
     summary: <SummaryScene key={state.sceneInstanceId} />,
   };

@@ -1,4 +1,5 @@
 import { buildDefaultAvatar, type Avatar } from "../data/avatar";
+import { strongestLink } from "../data/attention";
 import { isAligned, nextLockTarget } from "../data/vectorSpace";
 import type { ScenarioFixture } from "../data/scenarioTypes";
 import type { TransitionMode, TransitionVisualPhase } from "../motion/transitionTypes";
@@ -23,7 +24,16 @@ export interface ExperienceState {
     angle: number;
     lockedTokenIds: string[];
   };
-  /** Station 3: the probability wheel. One round per predicted word; a miss means "spin again". */
+  /** Station 3: "which word does this token care about most?" One round per keyword: guess, then reveal. */
+  attention: {
+    round: number;
+    guesses: AttentionGuess[];
+    /** The current round's links are on screen (the guess has been made). */
+    revealed: boolean;
+    complete: boolean;
+    source: InputSource;
+  };
+  /** Station 4, first half: the probability wheel. One round per predicted word; a miss means "spin again". */
   prediction: {
     round: number;
     picks: PredictionPick[];
@@ -57,6 +67,14 @@ export interface StationCardState {
   target?: SceneId;
 }
 
+export interface AttentionGuess {
+  focusId: string;
+  guessId: string;
+  strongestId: string;
+  /** The guess hit the strongest link exactly. */
+  correct: boolean;
+}
+
 export interface PredictionPick {
   round: number;
   text: string;
@@ -73,6 +91,8 @@ export type ExperienceAction =
   | { type: "AVATAR_SET"; avatar: Avatar }
   | { type: "VECTOR_ROTATE"; delta: number }
   | { type: "VECTOR_LOCK"; scenario: ScenarioFixture }
+  | { type: "ATTENTION_GUESS"; scenario: ScenarioFixture; tokenId: string }
+  | { type: "ATTENTION_NEXT"; scenario: ScenarioFixture }
   | { type: "PREDICTION_PICK"; scenario: ScenarioFixture; candidateIndex: number; greedy: boolean }
   | { type: "GENERATION_PUMP"; scenario: ScenarioFixture; meta: GuardMeta }
   | { type: "GENERATION_BUBBLE_POP"; index: number; scenario: ScenarioFixture; meta: GuardMeta }
@@ -108,6 +128,18 @@ function introCard(scene: SceneId): StationCardState | null {
 
 export function configureForScenario(scenario: ScenarioFixture): void {
   predictedCount = scenario.prediction.rounds.length;
+}
+
+function emptyAttention(source: InputSource = "user"): ExperienceState["attention"] {
+  return { round: 0, guesses: [], revealed: false, complete: false, source };
+}
+
+function completeAttention(scenario: ScenarioFixture, source: InputSource): ExperienceState["attention"] {
+  const guesses = scenario.attention.keywordTokenIds.map((focusId) => {
+    const strongestId = strongestLink(scenario, focusId).tokenId;
+    return { focusId, guessId: strongestId, strongestId, correct: true };
+  });
+  return { round: guesses.length, guesses, revealed: false, complete: true, source };
 }
 
 function emptyPrediction(source: InputSource = "user"): ExperienceState["prediction"] {
@@ -156,6 +188,7 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     avatar: null,
     card: introCard("input"),
     vector: emptyVector(),
+    attention: emptyAttention(),
     prediction: emptyPrediction(),
     generation: emptyGeneration(),
     settings: { quality: "medium", reducedMotion, presenterOpen: false },
@@ -192,8 +225,22 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       if (!target || !position || !isAligned(position, state.vector.angle)) return state;
       return { ...state, vector: { ...state.vector, lockedTokenIds: [...state.vector.lockedTokenIds, target] } };
     }
+    case "ATTENTION_GUESS": { // The visitor pulled a line from the focus word to the word they think it cares about most.
+      const { round, revealed, complete } = state.attention;
+      const focusId = action.scenario.attention.keywordTokenIds[round];
+      if (state.scene !== "attention" || state.scenePhase !== "ready" || revealed || complete || !focusId) return state;
+      if (action.tokenId === focusId || !action.scenario.inputTokens.some((token) => token.id === action.tokenId)) return state;
+      const strongestId = strongestLink(action.scenario, focusId).tokenId;
+      const guess = { focusId, guessId: action.tokenId, strongestId, correct: action.tokenId === strongestId };
+      return { ...state, attention: { ...state.attention, guesses: [...state.attention.guesses, guess], revealed: true, source: "user" } };
+    }
+    case "ATTENTION_NEXT": { // Done reading the reveal: on to the next keyword, or finish with the relation map.
+      if (state.scene !== "attention" || state.scenePhase !== "ready" || !state.attention.revealed || state.attention.complete) return state;
+      const round = state.attention.round + 1;
+      return { ...state, attention: { ...state.attention, round, revealed: false, complete: round >= action.scenario.attention.keywordTokenIds.length } };
+    }
     case "PREDICTION_PICK": { // The wheel stopped on a candidate (the scene draws it; the reducer records it).
-      if (state.scene !== "attention" || state.scenePhase !== "ready" || state.prediction.complete) return state;
+      if (state.scene !== "generation" || state.scenePhase !== "ready" || state.prediction.complete) return state;
       const round = action.scenario.prediction.rounds[state.prediction.round];
       const candidate = round?.candidates[action.candidateIndex];
       if (!round || !candidate) return state;
@@ -213,7 +260,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       };
     }
     case "GENERATION_PUMP": { // One press of the station 4 pump releases one bubble.
-      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete) return state;
+      if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete || !state.prediction.complete) return state;
       if (state.generation.releasedCount >= action.scenario.answer.tokens.length) return state;
       return { ...state, generation: { ...state.generation, pumpCount: state.generation.pumpCount + 1, releasedCount: state.generation.releasedCount + 1 } };
     }
@@ -267,7 +314,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...fresh, runId, sceneInstanceId, transitionId: runId * 1000 + sceneInstanceId, settings: { ...state.settings, presenterOpen: false } };
     }
     case "LOAD_PRESENTER_FIXTURE": {
-      const needsPrediction = ["generation", "output", "summary"].includes(action.scene);
+      const needsAttention = ["generation", "output", "summary"].includes(action.scene);
       const needsAnswer = action.scene === "output" || action.scene === "summary";
       return {
         ...state,
@@ -282,7 +329,8 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         card: introCard(action.scene),
         avatar: action.scene === "input" ? null : (state.avatar ?? buildDefaultAvatar()),
         vector: action.scene === "vector" || action.scene === "input" || action.scene === "tokenization" ? emptyVector() : completeVector(action.scenario),
-        prediction: needsPrediction ? completePrediction(action.scenario, "presenter") : emptyPrediction("presenter"),
+        attention: needsAttention ? completeAttention(action.scenario, "presenter") : emptyAttention("presenter"),
+        prediction: needsAnswer ? completePrediction(action.scenario, "presenter") : emptyPrediction("presenter"),
         generation: needsAnswer ? completeGeneration(action.scenario) : emptyGeneration(),
         settings: { ...state.settings, presenterOpen: false },
       };
@@ -290,11 +338,12 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
     case "REPLAY_SCENE": {
       const vector = state.scene === "vector" ? emptyVector() : state.vector;
       const avatar = state.scene === "input" ? null : state.avatar;
-      const prediction = state.scene === "attention" ? emptyPrediction(state.prediction.source) : state.prediction;
+      const attention = state.scene === "attention" ? emptyAttention(state.attention.source) : state.attention;
+      const prediction = state.scene === "generation" ? emptyPrediction(state.prediction.source) : state.prediction;
       const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", card: introCard(state.scene), avatar, vector, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", card: introCard(state.scene), avatar, vector, attention, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

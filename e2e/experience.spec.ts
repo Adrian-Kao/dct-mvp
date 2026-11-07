@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { lockNextVectorToken, spinAllRounds } from "./helpers";
+import { guessAllLinks, lockNextVectorToken, spinAllRounds } from "./helpers";
 
 test("presenter jump to the star field still requires locking, turning the dial and pumping", async ({ page }) => {
   const errors: string[] = [];
@@ -20,10 +20,12 @@ test("presenter jump to the star field still requires locking, turning the dial 
   await expect(page.getByRole("button", { name: "鎖定", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "帶著星座前往站 3" }).click();
 
+  await expect(page.locator(".attention-shell")).toBeVisible({ timeout: 6_000 });
+  await guessAllLinks(page);
+  await page.getByRole("button", { name: "帶著關係線前往站 4" }).click();
   await expect(page.locator(".prediction-shell")).toBeVisible({ timeout: 6_000 });
   await spinAllRounds(page);
-  await page.getByRole("button", { name: "帶著開頭前往站 4" }).click();
-  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
+  await page.getByRole("button", { name: "開始壓泵" }).click();
   const pump = page.getByRole("button", { name: "壓一下" });
   for (let press = 0; press < 41; press += 1) await pump.click();
   await expect(pump).toBeDisabled({ timeout: 5_000 });

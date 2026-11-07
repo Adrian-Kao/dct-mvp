@@ -1,4 +1,5 @@
 import type { InputToken, ScenarioFixture, Vec3 } from "../data/scenarioTypes";
+import { defaultAttention } from "../data/attention";
 import { nearestWords } from "../data/vectorSpace";
 import type { Tokenizer } from "./tokenizer";
 
@@ -176,6 +177,7 @@ export function draftScenario(input: DraftInput, tokenizer: Pick<Tokenizer, "idF
   const neighbors = defaultNeighbors(inputTokens, lockOrder, input.answerPieces);
   const vectorSpace = layoutVectorSpace(inputTokens, lockOrder, neighbors, seed);
   const prediction = defaultPrediction(inputTokens, input.answerPieces, lockOrder, neighbors, seed);
+  const attention = defaultAttention(inputTokens, lockOrder.slice(0, 3));
   return {
     id: `custom-${seed.toString(36)}`,
     question: input.question,
@@ -184,6 +186,7 @@ export function draftScenario(input: DraftInput, tokenizer: Pick<Tokenizer, "idF
     probabilitiesAreIllustrative: true,
     inputTokens,
     vectorSpace,
+    attention,
     prediction,
     answer: { id: `custom-answer-${seed.toString(36)}`, tokens: input.answerPieces },
   };

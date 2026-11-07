@@ -26,14 +26,14 @@ export interface VectorSpaceFixture {
 }
 
 export interface AttentionFixture {
-  /** Tokens the visitor must turn the dial to before the scene can finish. */
+  /** Station 3 rounds, in order: each one asks "which word does this token care about most?" */
   keywordTokenIds: string[];
   /**
    * Illustrative attention rows: weights[queryTokenId][i] is how much the
    * query token attends to inputTokens[i]. Each row adds up to 1.
    */
   weights: Record<string, number[]>;
-  /** Optional plain-language reading of what a token's strongest link means (shown as a "發現"). */
+  /** Optional plain-language reading of what a token's strongest link means (shown after the guess). */
   notes?: Record<string, string>;
 }
 
@@ -65,7 +65,7 @@ export interface ScenarioFixture {
   inputTokens: InputToken[];
   vectorSpace: VectorSpaceFixture;
   /** Legacy attention table (no longer shown; kept so older JSON files still load). */
-  attention?: AttentionFixture;
+  attention: AttentionFixture;
   prediction: PredictionFixture;
   answer: AnswerFixture;
 }

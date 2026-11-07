@@ -454,3 +454,37 @@ mark.clue-word { padding: 0 2px; border-radius: 4px; background: rgba(var(--choi
 @keyframes card-pulse { 50% { opacity: .45; } }
 @keyframes card-timer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 .admin-link { display: block; margin-top: 16px; text-align: center; text-decoration: none; }
+
+/* Station 3 attention: guess which word a token cares about most, then see every link's strength. */
+.attention-shell { display: grid; grid-template-rows: auto 1fr auto; row-gap: 6px; }
+.attention-stage { display: grid; grid-template-rows: auto 1fr; justify-items: center; min-height: 0; pointer-events: auto; }
+.attention-prompt { margin: 18px 0 0; font-size: clamp(20px, 2.1vw, 28px); color: #dfe7ef; text-align: center; }
+.attention-prompt small { display: block; margin-bottom: 4px; color: #7f8fa1; font-size: 13px; letter-spacing: .12em; }
+.attention-prompt b { color: rgb(var(--choice-rgb)); text-shadow: 0 0 18px rgba(var(--choice-rgb),.5); }
+.attention-board { width: 100%; max-width: 980px; height: 100%; min-height: 220px; overflow: visible; user-select: none; }
+.attention-chip { cursor: pointer; }
+.attention-chip rect { fill: rgba(16,24,36,.92); stroke: rgba(var(--signal-rgb),.35); stroke-width: 1.5; transition: fill .2s, stroke .2s; }
+.attention-chip .chip-word { fill: #dfe7ef; font-size: 26px; text-anchor: middle; dominant-baseline: middle; }
+.attention-chip .chip-id { fill: #6c7b8c; font-size: 13px; text-anchor: middle; font-family: ui-monospace, monospace; }
+.attention-chip .chip-badge { fill: #9fb0c2; font-size: 16px; text-anchor: middle; opacity: 0; animation: link-label .4s calc(.45s + var(--order) * 90ms) ease forwards; }
+.attention-chip .chip-badge.is-strongest { fill: rgb(var(--choice-rgb)); font-size: 22px; font-weight: 700; }
+.attention-chip .chip-badge.is-picked:not(.is-strongest) { fill: #ffb4a0; }
+.attention-chip.is-cursor rect { stroke: rgb(var(--signal-rgb)); stroke-width: 3; fill: rgba(var(--signal-rgb),.16); }
+.attention-chip.is-focus { cursor: default; }
+.attention-chip.is-focus rect { fill: rgba(var(--choice-rgb),.22); stroke: rgb(var(--choice-rgb)); stroke-width: 3; filter: drop-shadow(0 0 12px rgba(var(--choice-rgb),.7)); }
+.attention-chip.is-focus .chip-word { fill: #fff3dc; }
+.attention-chip.is-picked rect { stroke: #ffb4a0; stroke-width: 3; }
+.attention-chip.is-target rect { stroke: rgb(var(--choice-rgb)); stroke-width: 3; fill: rgba(var(--choice-rgb),.16); }
+.attention-aim { fill: none; stroke: rgba(var(--signal-rgb),.85); stroke-width: 3; stroke-dasharray: 8 8; animation: aim-march .8s linear infinite; }
+.attention-link path { fill: none; stroke: rgb(var(--signal-rgb)); stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: link-draw .7s calc(var(--order) * 90ms) cubic-bezier(.3,.7,.2,1) forwards; }
+.attention-link.is-strongest path { stroke: rgb(var(--choice-rgb)); filter: drop-shadow(0 0 8px rgba(var(--choice-rgb),.65)); }
+.attention-link.is-guess:not(.is-strongest) path { stroke: #ffb4a0; }
+.attention-link text { fill: #9fb0c2; font-size: 15px; text-anchor: middle; opacity: 0; animation: link-label .4s calc(.45s + var(--order) * 90ms) ease forwards; }
+.attention-link.is-strongest text { fill: rgb(var(--choice-rgb)); font-size: 19px; font-weight: 700; }
+.attention-bottom { position: relative; display: grid; justify-items: center; padding-bottom: 60px; }
+.attention-bottom > .scene-controls { bottom: 0; }
+.attention-bottom .interaction-hint { max-width: 760px; margin: 0; text-align: center; font-size: 16px; }
+.attention-bottom .interaction-hint.is-miss { color: #ffcdb8; }
+@keyframes aim-march { to { stroke-dashoffset: -16; } }
+@keyframes link-draw { to { stroke-dashoffset: 0; } }
+@keyframes link-label { to { opacity: 1; } }

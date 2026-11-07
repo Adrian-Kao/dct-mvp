@@ -23,9 +23,10 @@ function slicePath(start: number, end: number) {
 
 interface Outcome { text: string; probability: number; because?: string; kept: boolean; greedy: boolean }
 
-export function PredictionScene() {
+/** Station 4, first half: spin the probability wheel to draw the answer's opening words, then hand over to the pump. */
+export function PredictionScene({ onDone }: { onDone: () => void }) {
   const { state, dispatch, scenario } = useExperience();
-  const ready = state.scenePhase === "ready" && state.scene === "attention";
+  const ready = state.scenePhase === "ready" && state.scene === "generation";
   const reduced = state.settings.reducedMotion;
   const { round, complete, missesThisRound } = state.prediction;
   const rounds = scenario.prediction.rounds;
@@ -77,24 +78,24 @@ export function PredictionScene() {
   const pct = (value: number) => `${Math.round(value * 100)}%`;
 
   let message: string;
-  if (complete) message = `${rounds.length} 個詞都抽好了：「${answerSoFar.join("")}」。剩下的字，交給站 4 的水泵一個一個壓出來。`;
+  if (complete) message = `${rounds.length} 個詞都抽好了：「${answerSoFar.join("")}」。剩下的字，用水泵一個一個壓出來。`;
   else if (spinning) message = greedyNext ? "這次用 AI 最常用的做法：直接選機率最高的……" : "轉盤轉動中……";
   else if (outcome && !outcome.kept) message = `抽到「${outcome.text}」（${pct(outcome.probability)}）！真的 AI 也可能這樣接，答案就會走向另一個方向。這台展示機只準備了一條路，再轉一次：這次改用 AI 最常用的做法，直接選機率最高的。`;
-  else if (outcome) message = `抽到「${outcome.text}」（${pct(outcome.probability)}），接到答案後面！${outcome.because ? `它的機率高，是因為 AI 注意到問題裡的「${outcome.because}」。` : ""}`;
+  else if (outcome) message = `抽到「${outcome.text}」（${pct(outcome.probability)}），接到答案後面！${outcome.because ? `它的機率高，是因為站 3 的關係線連到問題裡的「${outcome.because}」。` : ""}`;
   else message = round === 0 ? "轉動轉盤（Space 或按「轉！」），抽出答案的第一個詞。格子越大，越容易抽中。" : "再轉一次，抽出下一個詞。";
 
   return (
     <div className="scene-shell prediction-shell" data-prediction-round={round} data-prediction-complete={complete} data-prediction-spinning={spinning}>
-      <SceneHeading eyebrow="站 3 · ATTENTION 注意力" title="下一個詞，是抽出來的。" />
+      <SceneHeading eyebrow="站 4 · GENERATION 生成" title="下一個詞，是抽出來的。" />
       <MissionCard
-        station="站 3 · 注意力"
+        station="站 4 · 生成（1/2 抽開頭）"
         task={<>AI 不是想好整句話才說，而是<b>一次抽一個詞</b>。轉盤上每一格是一個候選詞，格子越大、機率越高。</>}
         steps={[
           { text: "看轉盤：每一格是一個候選詞和它的機率" },
           { text: "轉動轉盤，指針停在哪一格就抽到哪個詞", keys: ["Space", "←", "→"], done: state.prediction.picks.length > 0 },
           { text: `抽中的詞接到答案後面，共 ${rounds.length} 輪（${Math.min(round, rounds.length)} / ${rounds.length}）`, done: complete },
         ]}
-        learned="AI 的回答是一個詞一個詞抽出來的。機率高的詞，來自它注意到的字；但轉到別的格子，答案就會不一樣。"
+        learned="AI 的回答是一個詞一個詞抽出來的。機率高的詞，來自站 3 找到的關係；但轉到別的格子，答案就會不一樣。"
         showLearned={complete}
       />
 
@@ -146,7 +147,7 @@ export function PredictionScene() {
                 <strong>{candidate.text}</strong>
                 <span className="candidate-bar"><span style={{ width: pct(candidate.probability) }} /></span>
                 <b>{pct(candidate.probability)}</b>
-                {candidate.because && <small>← 注意到「{candidate.because}」</small>}
+                {candidate.because && <small>← 關係線連到「{candidate.because}」</small>}
               </li>
             ))}
           </ul>
@@ -159,7 +160,7 @@ export function PredictionScene() {
       <div className="prediction-bottom" data-entry-target="true" data-entry-order="3">
         <p className={`interaction-hint${outcome && !outcome.kept && !spinning ? " is-miss" : ""}`} role="status">{message}</p>
         <div className="scene-controls">
-          <button type="button" className="primary-button" disabled={!complete || !ready} onClick={() => dispatch({ type: "REQUEST_TRANSITION", target: "generation" })}>帶著開頭前往站 4</button>
+          <button type="button" className="primary-button" disabled={!complete || !ready} onClick={onDone}>開始壓泵</button>
         </div>
       </div>
     </div>

@@ -6,7 +6,8 @@ export function SummaryScene() {
   const { state, dispatch, scenario } = useExperience();
   const answer = selectAnswer(state, scenario);
   const tokenText = (id: string) => scenario.inputTokens.find((token) => token.id === id)?.text.trim() ?? id;
-  const presenterPath = state.prediction.source === "presenter";
+  const presenterPath = state.attention.source === "presenter";
+  const tokenTextOf = (id: string) => scenario.inputTokens.find((token) => token.id === id)?.text.trim() ?? id;
   const picks = state.prediction.picks;
   if (!answer) return (
     <div className="scene-shell error-shell"><h1>路徑紀錄不完整</h1><button type="button" onClick={() => dispatch({ type: "RESET_EXPERIENCE" })}>重新開始</button></div>
@@ -21,7 +22,8 @@ export function SummaryScene() {
         <dl>
           <div><dt>問題</dt><dd>{scenario.question}</dd></div>
           <div><dt>站 2 鎖定的字</dt><dd>{state.vector.lockedTokenIds.length ? state.vector.lockedTokenIds.map(tokenText).join(" · ") : "未鎖定"}</dd></div>
-          <div><dt>站 3 轉盤抽到</dt><dd>{picks.length ? picks.map((pick) => `${pick.text}（${Math.round(pick.probability * 100)}%${pick.kept ? "" : "，再轉"}）`).join(" → ") : "未轉動"}</dd></div>
+          <div><dt>站 3 找到的關係</dt><dd>{state.attention.guesses.length ? state.attention.guesses.map((guess) => `${tokenTextOf(guess.focusId)}→${tokenTextOf(guess.strongestId)}${guess.correct ? "（猜對）" : ""}`).join(" · ") : "未完成"}</dd></div>
+          <div><dt>站 4 轉盤抽到</dt><dd>{picks.length ? picks.map((pick) => `${pick.text}（${Math.round(pick.probability * 100)}%${pick.kept ? "" : "，再轉"}）`).join(" → ") : "未轉動"}</dd></div>
           <div><dt>站 4 壓泵次數</dt><dd>{state.generation.pumpCount}</dd></div>
           <div><dt>答案編號</dt><dd><code>{answer.answerId}</code></dd></div>
         </dl>

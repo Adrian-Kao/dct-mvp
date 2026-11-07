@@ -43,10 +43,11 @@ export function validateScenario(value: unknown): ScenarioFixture {
   });
 
   const tokenCount = data.inputTokens.length;
-  if (data.attention !== undefined) {
+  {
     assert(typeof data.attention === "object" && data.attention !== null, "attention is required");
     const attention = data.attention as Record<string, unknown>;
-    assert(Array.isArray(attention.keywordTokenIds) && attention.keywordTokenIds.length > 0, "attention.keywordTokenIds are required");
+    assert(Array.isArray(attention.keywordTokenIds) && attention.keywordTokenIds.length > 0 && attention.keywordTokenIds.length <= 4, "attention.keywordTokenIds needs 1 to 4 rounds");
+    assert(new Set(attention.keywordTokenIds).size === attention.keywordTokenIds.length, "attention.keywordTokenIds must not repeat");
     attention.keywordTokenIds.forEach((id) => assert(tokenIds.has(id as string), `unknown attention keyword ${String(id)}`));
     assert(typeof attention.weights === "object" && attention.weights !== null, "attention.weights are required");
     const rows = attention.weights as Record<string, unknown>;
