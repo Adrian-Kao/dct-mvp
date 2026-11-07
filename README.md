@@ -60,7 +60,7 @@ npm run preview
 
 ## 固定資料與修改位置
 
-- 固定問題、7 個示意 token 與編號、站 2 星空（`vectorSpace`：問題字的位置、120 個背景字、鎖定順序）、Attention 權重表（`attention.weights`，每列加總為 1）、關鍵字與答案 token 序列（`answer.tokens`）：`src/data/scenario.json`
+- 固定問題、7 個示意 token 與編號、站 2 星空（`vectorSpace`：問題字的位置、121 個背景字、鎖定順序；每個鎖定字最近的 3 個字會變成「線索袋」，在站 4、站 5 的答案裡標出來）、Attention 權重表（`attention.weights`，每列加總為 1）、關鍵字與答案 token 序列（`answer.tokens`）：`src/data/scenario.json`
 - JSON 結構與載入驗證：`src/data/scenarioTypes.ts`、`src/data/validateScenario.ts`
 - 注意力最強連線與答案組合：`src/data/attention.ts`
 - 星空投影、光帶對準判定與最近鄰：`src/data/vectorSpace.ts`

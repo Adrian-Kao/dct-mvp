@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { useExperience } from "../app/ExperienceProvider";
 import { VECTOR_START_ANGLE } from "../app/experienceReducer";
 import { MissionCard } from "../components/MissionCard";
+import { ClueBag } from "../components/ClueBag";
 import { SceneHeading } from "../components/SceneHeading";
+import { cluesFor } from "../data/clues";
 import type { ScenarioFixture, Vec3 } from "../data/scenarioTypes";
 import { isAligned, nearestWords, nextLockTarget, project, tokenText, turnHint } from "../data/vectorSpace";
 
@@ -81,11 +83,7 @@ export function VectorScene() {
   const hintTurn = targetPosition ? turnHint(targetPosition, angle, KEY_STEP) : null;
   const turnLabel = hintTurn ? (hintTurn.direction < 0 ? `← 往左轉 ${hintTurn.steps} 格` : `往右轉 ${hintTurn.steps} 格 →`) : "";
   const latest = constellations[constellations.length - 1];
-  const farthest = latest
-    ? space.words
-        .map((word) => ({ text: word.text, distance: Math.hypot(...(word.position.map((value, index) => value - space.tokenPositions[latest.id][index]) as [number, number, number])) }))
-        .sort((a, b) => b.distance - a.distance)[0]
-    : null;
+  const clues = cluesFor(scenario, lockedTokenIds);
   const lockedText = lockedTokenIds.map((id) => tokenText(scenario, id));
   const hint = !target
     ? `已鎖定 ${space.maxLocks} 個字，星座完成了。`
@@ -107,7 +105,7 @@ export function VectorScene() {
           { text: "按「鎖定」，最近的 3 個字會拉出亮線", keys: ["Space"], done: lockedTokenIds.length > 0 },
           { text: `照順序再鎖定下一個字（至少 ${space.minLocks} 個，最多 ${space.maxLocks} 個）`, done: canContinue },
         ]}
-        learned="對 AI 來說，「意思」就是「距離」：靠得越近的字，越常一起出現。線越短越亮，關係越近。"
+        learned="對 AI 來說，「意思」就是「距離」。問題附近的字會變成線索，AI 生成答案時，會優先挑這些方向的字。"
         showLearned={lockedTokenIds.length > 0}
       />
 
@@ -173,10 +171,11 @@ export function VectorScene() {
           <button type="button" className="dial-step" aria-label="星空往右轉" disabled={!ready} onClick={() => dispatch({ type: "VECTOR_ROTATE", delta: KEY_STEP * 2 })}>▶</button>
         </div>
         {latest && (
-          <p className="vector-result">離「{tokenText(scenario, latest.id)}」最近：<b>{latest.neighbors.map((word) => word.text).join("、")}</b>{farthest ? <>；很遠的例子：{farthest.text}</> : null}</p>
+          <p className="vector-result">AI 讀到「{tokenText(scenario, latest.id)}」，最先聯想到 <b>{latest.neighbors.map((word) => word.text).join("、")}</b>。已放進線索袋，等一下生成答案時會用到。</p>
         )}
         <p className="vector-progress">已鎖定 <strong>{lockedTokenIds.length}</strong> / {space.maxLocks}{lockedText.length ? `：${lockedText.join("、")}` : ""}</p>
       </div>
+      <ClueBag clues={clues} />
       <div className="scene-controls" data-entry-target="true" data-entry-order="4">
         <button type="button" className="primary-button" disabled={!canContinue || !ready} onClick={() => dispatch({ type: "REQUEST_TRANSITION", target: "attention" })}>
           {canContinue ? "帶著星座前往站 3" : `再鎖定 ${space.minLocks - lockedTokenIds.length} 個字才能前進`}

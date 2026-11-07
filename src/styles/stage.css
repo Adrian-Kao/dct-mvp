@@ -411,3 +411,14 @@
 .aim-guide.is-aligned b, .aim-guide.is-aligned span { color: var(--choice); }
 .vector-result { margin: 0; color: var(--muted); font-size: 14px; }
 .vector-result b { color: var(--choice); }
+.clue-bag { position: absolute; z-index: 12; right: var(--mission-gap); bottom: 20px; width: var(--mission-w); padding: 12px 16px; border: 1px solid rgba(var(--choice-rgb),.35); border-radius: 14px; background: rgba(9,14,22,.9); pointer-events: auto; }
+.clue-bag h2 { margin: 0 0 8px; color: var(--choice); font-size: 12px; letter-spacing: .14em; font-weight: 650; }
+.clue-bag ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.clue-bag li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; font-size: 13px; color: var(--muted); }
+.clue-bag li strong { color: var(--signal); font-size: 14px; }
+.clue-bag em { padding: 1px 8px; border: 1px solid rgba(165,178,194,.25); border-radius: 999px; font-style: normal; color: var(--text); }
+.clue-bag em.is-used { border-color: var(--choice); color: var(--choice); background: rgba(var(--choice-rgb),.12); }
+mark.clue-word { padding: 0 2px; border-radius: 4px; background: rgba(var(--choice-rgb),.22); color: var(--choice); box-shadow: 0 0 14px rgba(var(--choice-rgb),.35); }
+.answer-new-token.is-clue { background: rgba(var(--choice-rgb),.35); color: #fff; }
+.clue-toast { margin: 8px 0 0; text-align: center; color: var(--choice); font-size: 15px; animation: number-rise .5s ease-out both; }
+.answer-card p.clue-legend { margin: 18px 0 0; color: var(--muted); font: 400 15px/1.7 system-ui, sans-serif; }

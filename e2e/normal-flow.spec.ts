@@ -69,6 +69,8 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   for (let press = 0; press < 50; press += 1) await page.keyboard.press("Space");
 
   await expect(page.locator(".answer-card")).toContainText(/想念一個人，是因為/u, { timeout: 10_000 });
+  await expect(page.locator(".clue-legend")).toContainText("記憶（←想念）");
+  await expect(page.locator(".answer-card mark.clue-word").first()).toBeVisible();
   await expect(page.locator(".mission-learned")).toContainText("生成答案，不等於理解答案");
   await page.getByRole("button", { name: "查看這次的路徑" }).click();
   await expect(page.getByText("missing-someone-answer-v1")).toBeVisible();

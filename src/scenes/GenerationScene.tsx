@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useExperience } from "../app/ExperienceProvider";
 import { selectVisibleAnswer } from "../app/selectors";
 import { MissionCard } from "../components/MissionCard";
+import { ClueBag } from "../components/ClueBag";
+import { ClueText } from "../components/ClueText";
 import { SceneHeading } from "../components/SceneHeading";
+import { clueHits, cluesFor } from "../data/clues";
 import type { GuardMeta } from "../app/experienceReducer";
 import type { ScenarioFixture } from "../data/scenarioTypes";
 import { motionDurations } from "../visual/visualConfig";
@@ -80,6 +83,10 @@ export function GenerationScene() {
   }
   const lastToken = appendedCount > 0 ? scenario.answer.tokens[appendedCount - 1] : "";
   const before = visible.slice(0, visible.length - lastToken.length);
+  const clues = cluesFor(scenario, state.vector.lockedTokenIds);
+  const clueWords = clues.flatMap((clue) => clue.words);
+  const hits = clueHits(visible, clues);
+  const newestHit = hits.find((hit) => lastToken.includes(hit.word) || (before + lastToken).endsWith(hit.word));
 
   return (
     <div className="scene-shell generation-shell" data-pump-released={releasedCount} data-pump-appended={appendedCount} data-generation-complete={complete}>
@@ -98,17 +105,19 @@ export function GenerationScene() {
 
       <section className="answer-line" aria-label="答案列" aria-live="polite" data-entry-target="true" data-entry-order="1">
         <p>
-          {before}
-          {lastToken && <mark key={appendedCount} className="answer-new-token">{lastToken}</mark>}
+          <ClueText text={before} words={clueWords} />
+          {lastToken && <mark key={appendedCount} className={`answer-new-token${newestHit ? " is-clue" : ""}`}>{lastToken}</mark>}
           {!complete && <i className="typing-caret" aria-hidden="true" />}
         </p>
       </section>
+      {newestHit && <p className="clue-toast" role="status">「{newestHit.word}」來自你在站 2 從「{newestHit.from}」找到的線索</p>}
 
       <section className={`pump-tank${inFlight.length ? " is-flowing" : ""}${complete ? " is-still" : ""}`} aria-hidden="true" data-entry-target="true" data-entry-order="2">
         <div className="pump-water" style={{ ["--flow" as string]: Math.min(1, inFlight.length / 5).toFixed(2) }} />
         {inFlight}
       </section>
 
+      <ClueBag clues={clues} used={hits.map((hit) => hit.word)} />
       <div className="generation-controls" data-entry-target="true" data-entry-order="3">
         <p className="interaction-hint" role="status">
           {complete ? "最後一個水泡破掉了，水面平靜下來。" : releasedCount === 0 ? <>按壓水泵，讓下一個字冒出來（鍵盤 <kbd>Space</kbd> 或 <kbd>↓</kbd>）</> : "壓得越快，答案長得越快；停下來，生成也會停住。"}

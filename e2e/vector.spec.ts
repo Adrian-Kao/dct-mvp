@@ -21,5 +21,6 @@ test("following the arrow guide reaches the band, and Space locks even with focu
     await page.keyboard.press("Space"); // focus is still on the ◀ ▶ button
     await expect(shell).toHaveAttribute("data-vector-locked", String(lock));
   }
-  await expect(page.locator(".vector-result")).toContainText("最近");
+  await expect(page.locator(".vector-result")).toContainText("最先聯想到");
+  await expect(page.locator(".clue-bag li")).toHaveCount(4);
 });

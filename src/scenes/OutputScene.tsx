@@ -1,11 +1,16 @@
 import { useExperience } from "../app/ExperienceProvider";
 import { selectAnswer } from "../app/selectors";
 import { MissionCard } from "../components/MissionCard";
+import { ClueBag } from "../components/ClueBag";
+import { ClueText } from "../components/ClueText";
 import { SceneHeading } from "../components/SceneHeading";
+import { clueHits, cluesFor } from "../data/clues";
 
 export function OutputScene() {
   const { state, dispatch, scenario } = useExperience();
   const answer = selectAnswer(state, scenario);
+  const clues = cluesFor(scenario, state.vector.lockedTokenIds);
+  const hits = answer ? clueHits(answer.fullAnswer, clues) : [];
   if (!answer) return (
     <div className="scene-shell error-shell"><h1>找不到完整回答</h1><button type="button" onClick={() => dispatch({ type: "RESET_EXPERIENCE" })}>重新開始</button></div>
   );
@@ -25,8 +30,14 @@ export function OutputScene() {
         showLearned
       />
       <article className="answer-card" data-entry-target="true" data-entry-order="2" data-transition-item="true" data-transition-id="output-answer" data-transition-role="retained" data-transition-source="dom" data-transition-slices="3">
-        <p>{answer.fullAnswer}</p>
+        <p><ClueText text={answer.fullAnswer} words={hits.map((hit) => hit.word)} /></p>
+        {hits.length > 0 && (
+          <p className="clue-legend">
+            發亮的字來自你在站 2 的線索袋：{hits.map((hit) => `${hit.word}（←${hit.from}）`).join("、")}。AI 不是想通了才寫出它們，而是因為它們在意思星空裡離問題很近。
+          </p>
+        )}
       </article>
+      <ClueBag clues={clues} used={hits.map((hit) => hit.word)} title="線索袋：打勾的字出現在答案裡" />
       <div className="scene-controls" data-entry-target="true" data-entry-order="4">
         <button type="button" className="primary-button" onClick={() => dispatch({ type: "REQUEST_TRANSITION", target: "summary" })}>查看這次的路徑</button>
       </div>

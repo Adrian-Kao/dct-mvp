@@ -13,7 +13,7 @@ test("WebGL mode keeps one canvas through the star field, the dial and the pump"
   await page.getByLabel("場景").selectOption("vector");
   await page.getByRole("button", { name: "跳至所選場景" }).click();
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 9_000 });
-  await expect(page.locator(".star-word")).toHaveCount(120);
+  await expect(page.locator(".star-word")).toHaveCount(121);
   await page.screenshot({ path: testInfo.outputPath("vector-webgl-1366x768.png") });
   await page.keyboard.press("d");
   await page.getByLabel("場景").selectOption("attention");
