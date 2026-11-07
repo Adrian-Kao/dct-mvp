@@ -136,9 +136,7 @@
 .dial-step:disabled { opacity: .35; cursor: default; }
 .attention-bottom { position: relative; z-index: 8; display: grid; justify-items: center; gap: 6px; padding-bottom: 60px; }
 .attention-bottom > .scene-controls { bottom: 0; }
-.attention-keywords { display: flex; gap: 14px; margin: 0; padding: 0; list-style: none; color: var(--muted); font-size: 13px; }
-.attention-keywords li.is-done { color: var(--choice); }
-.stage:is([data-transition-phase="compacting"], [data-transition-phase="converging"], [data-transition-phase="coreReady"], [data-transition-phase="exiting"]) :is(.attention-arcs, .attention-console, .attention-keywords) { opacity: 0; transition: opacity .28s ease; }
+.stage:is([data-transition-phase="compacting"], [data-transition-phase="converging"], [data-transition-phase="coreReady"], [data-transition-phase="exiting"]) :is(.attention-arcs, .attention-console, .attention-readout, .discovery-bag, .attention-guide) { opacity: 0; transition: opacity .28s ease; }
 
 .typing-caret { display: inline-block; width: 2px; height: .9em; margin-left: 4px; background: var(--choice); box-shadow: 0 0 9px var(--choice); animation: caret 1s steps(1) infinite; }
 @keyframes caret { 50% { opacity: 0; } }
@@ -422,3 +420,10 @@ mark.clue-word { padding: 0 2px; border-radius: 4px; background: rgba(var(--choi
 .answer-new-token.is-clue { background: rgba(var(--choice-rgb),.35); color: #fff; }
 .clue-toast { margin: 8px 0 0; text-align: center; color: var(--choice); font-size: 15px; animation: number-rise .5s ease-out both; }
 .answer-card p.clue-legend { margin: 18px 0 0; color: var(--muted); font: 400 15px/1.7 system-ui, sans-serif; }
+.attention-row .attention-guide { top: 0; }
+.attention-readout { position: relative; z-index: 7; display: grid; justify-items: center; gap: 4px; margin: 4px auto 0; text-align: center; color: var(--muted); font-size: clamp(16px, 1.5vw, 20px); }
+.attention-readout b { color: var(--text); font-weight: 650; }
+.attention-readout em { margin-left: 6px; color: var(--choice); font-style: normal; font-weight: 700; }
+.attention-readout.is-keyword b { color: var(--choice); }
+.attention-readout small { color: var(--choice); font-size: 15px; animation: number-rise .45s ease-out both; }
+.discovery-bag li.is-pending { color: #6f7f90; }

@@ -33,3 +33,31 @@ export function keywordsComplete(scenario: ScenarioFixture, visitedTokenIds: str
 export function fullAnswer(scenario: ScenarioFixture): string {
   return scenario.answer.tokens.join("");
 }
+
+/** The other token a query token cares about most (its own weight is left out). */
+export function topOther(scenario: ScenarioFixture, queryTokenId: string): { tokenId: string; text: string; weight: number } | null {
+  const row = attentionRow(scenario, queryTokenId);
+  let best = -1;
+  row.forEach((weight, index) => {
+    if (scenario.inputTokens[index]?.id === queryTokenId) return;
+    if (best < 0 || weight > row[best]) best = index;
+  });
+  const token = scenario.inputTokens[best];
+  return token ? { tokenId: token.id, text: token.text, weight: row[best] } : null;
+}
+
+/** Keyword tokens not yet discovered, nearest (in dial detents) first, with the turn needed to reach it. */
+export function nextKeywordTurn(scenario: ScenarioFixture, focusIndex: number, visitedTokenIds: string[]): { tokenId: string; text: string; direction: -1 | 1; steps: number } | null {
+  const count = scenario.inputTokens.length;
+  const visitedTexts = new Set(visitedTokenIds.map((id) => scenario.inputTokens.find((token) => token.id === id)?.text));
+  const keywordTexts = new Set(scenario.attention.keywordTokenIds.map((id) => scenario.inputTokens.find((token) => token.id === id)?.text));
+  let best: { tokenId: string; text: string; direction: -1 | 1; steps: number } | null = null;
+  scenario.inputTokens.forEach((token, index) => {
+    if (!keywordTexts.has(token.text) || visitedTexts.has(token.text)) return;
+    const right = (index - focusIndex + count) % count;
+    const left = (focusIndex - index + count) % count;
+    const option = right <= left ? { direction: 1 as const, steps: right } : { direction: -1 as const, steps: left };
+    if (!best || option.steps < best.steps) best = { tokenId: token.id, text: token.text, ...option };
+  });
+  return best;
+}

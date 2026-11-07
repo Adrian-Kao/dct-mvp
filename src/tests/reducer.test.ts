@@ -53,13 +53,12 @@ describe("station 2 star field", () => {
 describe("station 3 attention dial", () => {
   it("moves one detent per rotation, wraps around, and records visited tokens", () => {
     let state = sceneState("attention");
-    expect(state.attention.focusIndex).toBe(0);
+    expect(state.attention.focusIndex).toBe(2); // starts on 會, not a keyword
+    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
+    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
     state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
     expect(state.attention.focusIndex).toBe(scenario.inputTokens.length - 1);
-    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: 1, scenario });
-    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: 1, scenario });
-    expect(state.attention.focusIndex).toBe(1);
-    expect(state.attention.visitedTokenIds).toEqual(["t01", "t07", "t02"]);
+    expect(state.attention.visitedTokenIds).toEqual(["t02", "t01", "t07"]);
     expect(state.attention.complete).toBe(false);
   });
 

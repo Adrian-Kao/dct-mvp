@@ -3,7 +3,7 @@ import { useExperience } from "../app/ExperienceProvider";
 import { selectFocusToken, selectStrongestLinks } from "../app/selectors";
 import { MissionCard } from "../components/MissionCard";
 import { SceneHeading } from "../components/SceneHeading";
-import { attentionRow } from "../data/attention";
+import { attentionRow, nextKeywordTurn, topOther } from "../data/attention";
 
 interface RowGeometry {
   width: number;
@@ -93,23 +93,38 @@ export function AttentionScene() {
   const focusSector = sectors[state.attention.focusIndex] ?? sectors[0];
   const needleAngle = focusSector ? (focusSector.start + focusSector.end) / 2 : 0;
   const keywords = scenario.attention.keywordTokenIds.map((id) => tokens.find((token) => token.id === id)!).filter(Boolean);
+  const keywordTexts = new Set(keywords.map((token) => token.text));
+  const top = topOther(scenario, focus.id);
+  const turn = nextKeywordTurn(scenario, state.attention.focusIndex, state.attention.visitedTokenIds);
+  const turnLabel = turn ? (turn.direction < 0 ? `← 往左轉 ${turn.steps} 格` : `往右轉 ${turn.steps} 格 →`) : "";
+  const focusIsKeyword = keywordTexts.has(focus.text);
+  // One discovery per keyword word, in the order the visitor found them.
+  const discoveries = state.attention.visitedTokenIds
+    .map((id) => tokens.find((token) => token.id === id)!)
+    .filter((token, index, list) => token && keywordTexts.has(token.text) && list.findIndex((other) => other?.text === token.text) === index)
+    .map((token) => ({ token, top: topOther(scenario, token.id), note: scenario.attention.notes?.[token.id] }));
+  const pending = Math.max(0, keywords.length - discoveries.length);
+  const note = scenario.attention.notes?.[focus.id];
 
   return (
     <div className="scene-shell attention-shell" data-attention-complete={complete}>
-      <SceneHeading eyebrow="站 3 · ATTENTION 注意力" title="一句話裡，不是每個字都一樣重要。" />
+      <SceneHeading eyebrow="站 3 · ATTENTION 注意力" title="每個字都在看別的字：它最在意誰？" />
       <MissionCard
         station="站 3 · 注意力"
-        task="轉動轉盤，看看每個字「最在意」句子裡的哪些字。"
+        task={<>一句話裡，不是每個字都一樣重要。指針停在哪個字，就由<b>那個字</b>去看其他字。找出 {keywords.length} 個關鍵字各自<b>最在意誰</b>。</>}
         steps={[
-          { text: "轉動轉盤，讓指針停在一個字上", keys: ["←", "→"], done: state.attention.visitedTokenIds.length > 0 },
-          { text: "看圓餅：格子越大，代表這個字越在意那個字，全部加起來是 100%" },
-          { text: `把關鍵字（${keywords.map((token) => token.text.trim()).join("、")}）都轉過一次`, done: complete },
+          { text: "照上方提示轉動轉盤，讓指針停在目標字", keys: ["←", "→"], done: state.attention.visitedTokenIds.length > 0 },
+          { text: "看中間那句話和連線：線越粗、格子越大，越在意" },
+          { text: `收集 ${keywords.length} 個發現（${discoveries.length} / ${keywords.length}）`, done: complete },
         ]}
         learned="AI 會依前後文把注意力分給每個字。這是算出來的機率，不是理解出來的。"
         showLearned={complete}
       />
 
       <div ref={rowRef} className="attention-row" data-entry-target="true" data-entry-order="1">
+        <div className={`aim-guide attention-guide${complete ? " is-aligned" : ""}`} aria-hidden="true">
+          {complete ? <span>{keywords.length} 個發現都找到了！</span> : turn ? <>目標：<b>{turn.text.trim()}</b><span>{turnLabel}</span></> : null}
+        </div>
         <svg className="attention-arcs" viewBox={`0 0 ${geometry.width} ${geometry.height}`} preserveAspectRatio="none" aria-hidden="true">
           {geometry.anchors.length === tokens.length && (complete
             ? strongest.map((link) => {
@@ -153,6 +168,11 @@ export function AttentionScene() {
         </div>
       </div>
 
+      <p className={`attention-readout${focusIsKeyword ? " is-keyword" : ""}`} role="status" data-entry-target="true" data-entry-order="2">
+        <span>現在由「<b>{focus.text.trim()}</b>」去看其他字 → 最在意「<b>{top?.text.trim()}</b>」<em>{top ? Math.round(top.weight * 100) : 0}%</em></span>
+        {focusIsKeyword && note && <small>{note}</small>}
+      </p>
+
       <div className="attention-console" data-entry-target="true" data-entry-order="2">
         <button type="button" className="dial-step" aria-label="轉盤往左一格" disabled={!ready} onClick={() => dispatch({ type: "ATTENTION_ROTATE", delta: -1, scenario })}>◀</button>
         <figure className="attention-dial" aria-label={`轉盤停在 ${focus.text.trim()}`}>
@@ -179,15 +199,18 @@ export function AttentionScene() {
         <button type="button" className="dial-step" aria-label="轉盤往右一格" disabled={!ready} onClick={() => dispatch({ type: "ATTENTION_ROTATE", delta: 1, scenario })}>▶</button>
       </div>
 
-      <div className="attention-bottom" data-entry-target="true" data-entry-order="3">
-        <ul className="attention-keywords" aria-label="關鍵字進度">
-          {keywords.map((token) => {
-            const done = state.attention.visitedTokenIds.some((id) => tokens.find((item) => item.id === id)?.text === token.text);
-            return <li key={token.id} className={done ? "is-done" : ""}>{done ? "✓" : "○"} {token.text.trim()}</li>;
-          })}
+      <section className="clue-bag discovery-bag" aria-label="你的發現">
+        <h2>你的發現（{discoveries.length} / {keywords.length}）</h2>
+        <ul>
+          {discoveries.map((item) => (
+            <li key={item.token.id}><strong>{item.token.text.trim()}</strong><span aria-hidden="true">→</span><em className="is-used">{item.top?.text.trim()} {item.top ? Math.round(item.top.weight * 100) : 0}%</em></li>
+          ))}
+          {Array.from({ length: pending }, (_, index) => <li key={`pending-${index}`} className="is-pending">？？ → 還沒找到</li>)}
         </ul>
-        <p className="interaction-hint" role="status">
-          {complete ? "最粗的 3 條線留下來了，這就是這句話的重點。" : <>轉動轉盤，讓指針停在每個關鍵字上（鍵盤 <kbd>←</kbd> <kbd>→</kbd>）</>}
+      </section>
+      <div className="attention-bottom" data-entry-target="true" data-entry-order="3">
+        <p className="interaction-hint">
+          {complete ? "最粗的 3 條線留下來了，這就是這句話的重點。" : <>用 <kbd>←</kbd> <kbd>→</kbd> 或 ◀ ▶ 轉動轉盤；也可以直接點上面的字。</>}
         </p>
         <div className="scene-controls">
           <button type="button" className="primary-button" disabled={!complete || !ready} onClick={() => dispatch({ type: "REQUEST_TRANSITION", target: "generation" })}>帶著重點前進</button>

@@ -67,8 +67,11 @@ export type ExperienceAction =
   | { type: "SET_REDUCED_MOTION"; reducedMotion: boolean }
   | { type: "TOGGLE_PRESENTER"; open?: boolean };
 
+/** The pointer starts on 會, which is not a keyword, so every discovery needs a real turn of the dial. */
+export const ATTENTION_START_INDEX = 2;
+
 function emptyAttention(source: InputSource = "user"): ExperienceState["attention"] {
-  return { focusIndex: 0, visitedTokenIds: [], complete: false, source };
+  return { focusIndex: ATTENTION_START_INDEX, visitedTokenIds: [], complete: false, source };
 }
 
 export const VECTOR_START_ANGLE = -0.5;
@@ -99,10 +102,8 @@ function completeGeneration(scenario: ScenarioFixture): ExperienceState["generat
 function focusToken(state: ExperienceState, scenario: ScenarioFixture, focusIndex: number): ExperienceState {
   const token = scenario.inputTokens[focusIndex];
   if (!token) return state;
-  // The pointer already rested on its starting token, so leaving it counts as a visit too.
-  const previous = scenario.inputTokens[state.attention.focusIndex];
-  const visitedTokenIds = [...state.attention.visitedTokenIds];
-  for (const id of [previous?.id, token.id]) if (id && !visitedTokenIds.includes(id)) visitedTokenIds.push(id);
+  // A token counts as visited when the pointer lands on it (that is when its discovery is shown).
+  const visitedTokenIds = state.attention.visitedTokenIds.includes(token.id) ? state.attention.visitedTokenIds : [...state.attention.visitedTokenIds, token.id];
   return {
     ...state,
     attention: { ...state.attention, focusIndex, visitedTokenIds, complete: keywordsComplete(scenario, visitedTokenIds), source: "user" },

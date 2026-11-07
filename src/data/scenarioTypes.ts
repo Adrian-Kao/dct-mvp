@@ -33,6 +33,8 @@ export interface AttentionFixture {
    * query token attends to inputTokens[i]. Each row adds up to 1.
    */
   weights: Record<string, number[]>;
+  /** Optional plain-language reading of what a token's strongest link means (shown as a "發現"). */
+  notes?: Record<string, string>;
 }
 
 export interface AnswerFixture {

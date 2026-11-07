@@ -52,6 +52,7 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   await expect(next).toBeDisabled();
   for (let step = 0; step < 5; step += 1) await page.keyboard.press("ArrowRight");
   await expect(page.locator(".attention-shell")).toHaveAttribute("data-attention-complete", "true");
+  await expect(page.getByRole("region", { name: "你的發現" })).toContainText("想念→人 34%");
   await expect(page.locator(".attention-arc.is-strongest")).toHaveCount(3);
   await next.click();
 
