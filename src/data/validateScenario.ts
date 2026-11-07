@@ -43,24 +43,45 @@ export function validateScenario(value: unknown): ScenarioFixture {
   });
 
   const tokenCount = data.inputTokens.length;
-  assert(typeof data.attention === "object" && data.attention !== null, "attention is required");
-  const attention = data.attention as Record<string, unknown>;
-  assert(Array.isArray(attention.keywordTokenIds) && attention.keywordTokenIds.length > 0, "attention.keywordTokenIds are required");
-  attention.keywordTokenIds.forEach((id) => assert(tokenIds.has(id as string), `unknown attention keyword ${String(id)}`));
-  assert(typeof attention.weights === "object" && attention.weights !== null, "attention.weights are required");
-  const rows = attention.weights as Record<string, unknown>;
-  tokenIds.forEach((id) => {
-    const row = rows[id];
-    assert(Array.isArray(row) && row.length === tokenCount, `attention.weights.${id} must have ${tokenCount} values`);
-    assert(row.every((weight) => typeof weight === "number" && Number.isFinite(weight) && weight > 0), `attention.weights.${id} weight must be positive`);
-    const sum = (row as number[]).reduce((total, weight) => total + weight, 0);
-    assert(Math.abs(sum - 1) < 1e-6, `attention.weights.${id} must add to 1 (received ${sum})`);
-  });
+  if (data.attention !== undefined) {
+    assert(typeof data.attention === "object" && data.attention !== null, "attention is required");
+    const attention = data.attention as Record<string, unknown>;
+    assert(Array.isArray(attention.keywordTokenIds) && attention.keywordTokenIds.length > 0, "attention.keywordTokenIds are required");
+    attention.keywordTokenIds.forEach((id) => assert(tokenIds.has(id as string), `unknown attention keyword ${String(id)}`));
+    assert(typeof attention.weights === "object" && attention.weights !== null, "attention.weights are required");
+    const rows = attention.weights as Record<string, unknown>;
+    tokenIds.forEach((id) => {
+      const row = rows[id];
+      assert(Array.isArray(row) && row.length === tokenCount, `attention.weights.${id} must have ${tokenCount} values`);
+      assert(row.every((weight) => typeof weight === "number" && Number.isFinite(weight) && weight > 0), `attention.weights.${id} weight must be positive`);
+      const sum = (row as number[]).reduce((total, weight) => total + weight, 0);
+      assert(Math.abs(sum - 1) < 1e-6, `attention.weights.${id} must add to 1 (received ${sum})`);
+    });
+  }
 
   assert(typeof data.answer === "object" && data.answer !== null, "answer is required");
   const answer = data.answer as Record<string, unknown>;
   assert(typeof answer.id === "string" && answer.id.length > 0, "answer.id is required");
   assert(Array.isArray(answer.tokens) && answer.tokens.length > 0, "answer.tokens are required");
   answer.tokens.forEach((token, index) => assert(typeof token === "string" && token.length > 0, `answer.tokens[${index}] must be a non-empty string`));
+  assert(typeof data.prediction === "object" && data.prediction !== null, "prediction is required");
+  const answerTokens = answer.tokens as string[];
+  const rounds = (data.prediction as Record<string, unknown>).rounds;
+  assert(Array.isArray(rounds) && rounds.length > 0 && rounds.length <= answerTokens.length, "prediction.rounds must have 1 to answer.tokens.length rounds");
+  rounds.forEach((round, index) => {
+    const candidates = (round as Record<string, unknown>)?.candidates;
+    assert(Array.isArray(candidates) && candidates.length >= 2 && candidates.length <= 6, `prediction.rounds[${index}] needs 2 to 6 candidates`);
+    candidates.forEach((candidate, c) => {
+      const item = candidate as Record<string, unknown>;
+      assert(typeof item.text === "string" && item.text.length > 0, `prediction.rounds[${index}].candidates[${c}].text is required`);
+      assert(typeof item.probability === "number" && item.probability > 0, `prediction.rounds[${index}].candidates[${c}].probability must be positive`);
+      assert(item.because === undefined || typeof item.because === "string", `prediction.rounds[${index}].candidates[${c}].because must be text`);
+    });
+    const texts = candidates.map((candidate) => (candidate as { text: string }).text);
+    assert(new Set(texts).size === texts.length, `prediction.rounds[${index}] has duplicate candidates`);
+    assert(texts.includes(answerTokens[index]), `prediction.rounds[${index}] must include the answer token 「${answerTokens[index]}」`);
+    const sum = candidates.reduce((total: number, candidate) => total + (candidate as { probability: number }).probability, 0);
+    assert(Math.abs(sum - 1) < 1e-6, `prediction.rounds[${index}] probabilities must add to 1 (received ${sum})`);
+  });
   return data as unknown as ScenarioFixture;
 }

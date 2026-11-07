@@ -7,7 +7,7 @@ import { FallbackStage2D } from "../visual/FallbackStage2D";
 import { InputScene } from "../scenes/InputScene";
 import { TokenizationScene } from "../scenes/TokenizationScene";
 import { VectorScene } from "../scenes/VectorScene";
-import { AttentionScene } from "../scenes/AttentionScene";
+import { PredictionScene } from "../scenes/PredictionScene";
 import { GenerationScene } from "../scenes/GenerationScene";
 import { OutputScene } from "../scenes/OutputScene";
 import { SummaryScene } from "../scenes/SummaryScene";
@@ -25,7 +25,7 @@ export default function App() {
     input: <InputScene key={state.sceneInstanceId} />,
     tokenization: <TokenizationScene key={state.sceneInstanceId} />,
     vector: <VectorScene key={state.sceneInstanceId} />,
-    attention: <AttentionScene key={state.sceneInstanceId} />,
+    attention: <PredictionScene key={state.sceneInstanceId} />,
     generation: <GenerationScene key={state.sceneInstanceId} />,
     output: <OutputScene key={state.sceneInstanceId} />,
     summary: <SummaryScene key={state.sceneInstanceId} />,

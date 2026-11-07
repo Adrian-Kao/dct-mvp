@@ -9,14 +9,11 @@ describe("scenario fixture", () => {
     expect(scenario.inputTokens.map((token) => token.text).join("")).toBe(scenario.question);
   });
 
-  it("has one normalized attention row per token and keywords that exist", () => {
-    for (const token of scenario.inputTokens) {
-      const row = scenario.attention.weights[token.id];
-      expect(row).toHaveLength(scenario.inputTokens.length);
-      expect(Math.abs(row.reduce((sum, weight) => sum + weight, 0) - 1)).toBeLessThan(1e-6);
-    }
-    const ids = scenario.inputTokens.map((token) => token.id);
-    expect(scenario.attention.keywordTokenIds.every((id) => ids.includes(id))).toBe(true);
+  it("has one probability wheel per drawn word, each including the answer's next word", () => {
+    scenario.prediction.rounds.forEach((round, index) => {
+      expect(round.candidates.map((candidate) => candidate.text)).toContain(scenario.answer.tokens[index]);
+      expect(Math.abs(round.candidates.reduce((sum, candidate) => sum + candidate.probability, 0) - 1)).toBeLessThan(1e-6);
+    });
   });
 
   it("has a non-empty answer token sequence", () => {
@@ -26,10 +23,10 @@ describe("scenario fixture", () => {
 
   it("rejects incomplete or misleading fixture data", () => {
     const broken = structuredClone(rawScenario);
-    broken.attention.weights.t01[0] = 0;
-    expect(() => validateScenario(broken)).toThrow(/weight must be positive/u);
+    broken.prediction.rounds[0].candidates[0].text = "不是答案";
+    expect(() => validateScenario(broken)).toThrow(/must include the answer token/u);
     const unbalanced = structuredClone(rawScenario);
-    unbalanced.attention.weights.t02[0] = 0.5;
+    unbalanced.prediction.rounds[1].candidates[0].probability = 0.9;
     expect(() => validateScenario(unbalanced)).toThrow(/must add to 1/u);
   });
 });

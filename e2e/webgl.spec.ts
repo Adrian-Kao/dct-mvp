@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("WebGL mode keeps one canvas through the star field, the dial and the pump", async ({ page }, testInfo) => {
+test("WebGL mode keeps one canvas through the star field, the wheel and the pump", async ({ page }, testInfo) => {
   const externalRequests: string[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -19,7 +19,7 @@ test("WebGL mode keeps one canvas through the star field, the dial and the pump"
   await page.getByLabel("場景").selectOption("attention");
   await page.getByRole("button", { name: "跳至所選場景" }).click();
   await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 9_000 });
-  await page.screenshot({ path: testInfo.outputPath("attention-webgl-1366x768.png") });
+  await page.screenshot({ path: testInfo.outputPath("prediction-webgl-1366x768.png") });
   await page.keyboard.press("d");
   await page.getByLabel("場景").selectOption("generation");
   await page.getByRole("button", { name: "跳至所選場景" }).click();

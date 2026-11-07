@@ -24,3 +24,16 @@ export async function sliceSentence(page: Page) {
   }
   await expect(shell).toHaveAttribute("data-slice-complete", "true");
 }
+
+/** Station 3: spin the probability wheel until every round has drawn its word (a miss is followed by a greedy spin). */
+export async function spinAllRounds(page: Page) {
+  const shell = page.locator(".prediction-shell");
+  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
+  for (let spin = 0; spin < 12; spin += 1) {
+    if ((await shell.getAttribute("data-prediction-complete")) === "true") break;
+    await page.keyboard.press("Space");
+    await expect(shell).toHaveAttribute("data-prediction-spinning", "false", { timeout: 6_000 });
+    await expect(shell).toHaveAttribute("data-prediction-spinning", "false");
+  }
+  await expect(shell).toHaveAttribute("data-prediction-complete", "true");
+}

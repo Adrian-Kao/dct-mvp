@@ -93,13 +93,13 @@ export function GenerationScene() {
       <SceneHeading eyebrow="站 4 · GENERATION 生成" title="答案不是一次寫好的。" />
       <MissionCard
         station="站 4 · 生成"
-        task="用水泵把答案一塊一塊壓出來。每一塊字，都要再跑一次剛剛的所有步驟。"
+        task={`開頭的「${scenario.answer.tokens.slice(0, scenario.prediction.rounds.length).join("")}」是你在站 3 抽出來的。剩下的用水泵一塊一塊壓出來：每一塊字，都要再跑一次剛剛的所有步驟。`}
         steps={[
-          { text: "按壓水泵", keys: ["Space", "↓"], done: releasedCount > 0 },
-          { text: "水泡浮到水面破掉，字就接到答案後面", done: appendedCount > 0 },
+          { text: "按壓水泵", keys: ["Space", "↓"], done: state.generation.pumpCount > 0 },
+          { text: "水泡浮到水面破掉，字就接到答案後面", done: state.generation.pumpCount > 0 && appendedCount > scenario.prediction.rounds.length },
           { text: "一直壓，直到答案完成；停下來，生成也會停住", done: complete },
         ]}
-        learned="每一塊字背後都是一整套計算（切字、向量、注意力），而計算需要能源。"
+        learned="每一塊字背後都是一整套計算（切字、向量、抽詞），而計算需要能源。"
         showLearned={complete}
       />
 
@@ -120,7 +120,7 @@ export function GenerationScene() {
       <ClueBag clues={clues} used={hits.map((hit) => hit.word)} />
       <div className="generation-controls" data-entry-target="true" data-entry-order="3">
         <p className="interaction-hint" role="status">
-          {complete ? "最後一個水泡破掉了，水面平靜下來。" : releasedCount === 0 ? <>按壓水泵，讓下一個字冒出來（鍵盤 <kbd>Space</kbd> 或 <kbd>↓</kbd>）</> : "壓得越快，答案長得越快；停下來，生成也會停住。"}
+          {complete ? "最後一個水泡破掉了，水面平靜下來。" : state.generation.pumpCount === 0 ? <>按壓水泵，讓下一個字冒出來（鍵盤 <kbd>Space</kbd> 或 <kbd>↓</kbd>）</> : "壓得越快，答案長得越快；停下來，生成也會停住。"}
         </p>
         <button type="button" className={`pump-button${pressed ? " is-pressed" : ""}`} disabled={!ready || complete} onClick={pump}>
           壓一下

@@ -3,8 +3,7 @@ import { clueHits, cluesFor } from "../data/clues";
 import { clearActiveScenario, defaultScenario, loadActiveScenario, saveActiveScenario } from "../data/scenarioStore";
 import type { ScenarioFixture } from "../data/scenarioTypes";
 import { validateScenario } from "../data/validateScenario";
-import { topOther } from "../data/attention";
-import { defaultAttention, draftScenario, isContent, layoutVectorSpace, neighborsOf, normalizeRow } from "./buildScenario";
+import { defaultPrediction, draftScenario, isContent, layoutVectorSpace, neighborsOf, normalizeCandidates } from "./buildScenario";
 import { loadTokenizer, type CutMode, type Tokenizer } from "./tokenizer";
 import "./admin.css";
 
@@ -12,11 +11,14 @@ const SEPARATOR = "|";
 const join = (pieces: string[]) => pieces.join(SEPARATOR);
 const split = (text: string) => text.split(SEPARATOR).filter((piece) => piece.length > 0);
 
-/** Normalize every attention row so it adds to 1, then run the same validator the exhibition uses. */
+type Candidate = ScenarioFixture["prediction"]["rounds"][number]["candidates"][number];
+
+/** Make every wheel add up to 100%, drop the legacy attention table, then run the exhibition's validator. */
 function finalize(draft: ScenarioFixture): ScenarioFixture {
-  const weights = Object.fromEntries(Object.entries(draft.attention.weights).map(([id, row]) => [id, normalizeRow(row)]));
-  const notes = Object.fromEntries(Object.entries(draft.attention.notes ?? {}).filter(([, note]) => note.trim()));
-  return validateScenario({ ...draft, attention: { ...draft.attention, weights, notes } });
+  const rounds = draft.prediction.rounds.map((round) => ({ candidates: normalizeCandidates(round.candidates.filter((candidate) => candidate.text.trim())) }));
+  const { attention: _legacy, ...rest } = draft;
+  void _legacy;
+  return validateScenario({ ...rest, prediction: { rounds } });
 }
 
 export default function AdminApp() {
@@ -85,17 +87,22 @@ export default function AdminApp() {
     relayout(lockOrder);
   };
 
-  const toggleKeyword = (id: string) => {
-    const current = draft.attention.keywordTokenIds;
-    const keywordTokenIds = current.includes(id) ? current.filter((item) => item !== id) : [...current, id];
-    if (!keywordTokenIds.length) return;
-    setDraft({ ...draft, attention: { ...draft.attention, keywordTokenIds } });
+  const setRounds = (rounds: ScenarioFixture["prediction"]["rounds"]) => setDraft({ ...draft, prediction: { rounds } });
+
+  const updateCandidate = (roundIndex: number, candidateIndex: number, patch: Partial<Candidate>) => {
+    setRounds(draft.prediction.rounds.map((round, r) => (r !== roundIndex ? round : {
+      candidates: round.candidates.map((candidate, c) => {
+        if (c !== candidateIndex) return candidate;
+        const next = { ...candidate, ...patch };
+        if (!next.because) delete next.because;
+        return next;
+      }),
+    })));
   };
 
-  const setWeight = (rowId: string, index: number, percent: number) => {
-    const row = [...draft.attention.weights[rowId]];
-    row[index] = Math.max(0.001, percent / 100);
-    setDraft({ ...draft, attention: { ...draft.attention, weights: { ...draft.attention.weights, [rowId]: row } } });
+  const setRoundCount = (count: number) => {
+    const fresh = defaultPrediction(draft.inputTokens, draft.answer.tokens, draft.vectorSpace.lockOrder, neighborsOf(draft), draft.seed, count).rounds;
+    setRounds(fresh.map((round, index) => draft.prediction.rounds[index] ?? round));
   };
 
   const save = () => {
@@ -224,44 +231,48 @@ export default function AdminApp() {
       </section>
 
       <section className="admin-card">
-        <h2><span>站 3</span>注意力：關鍵字、權重和白話解釋</h2>
-        <p className="admin-hint">每一列是「這個字去看其他字」的比例，存檔時自動調成加起來 100%。打勾的是觀眾要找的關鍵字，解釋會在指針停到它時出現。</p>
-        <div className="admin-scroll">
-          <table className="admin-table admin-weights">
-            <thead><tr><th>關鍵字</th><th>由誰去看 ↓ / 被看 →</th>{tokens.map((token) => <th key={token.id}>{token.text}</th>)}<th>最在意</th></tr></thead>
-            <tbody>
-              {tokens.map((row) => {
-                const values = draft.attention.weights[row.id] ?? [];
-                const total = values.reduce((sum, value) => sum + value, 0) || 1;
-                const top = topOther({ ...draft, attention: { ...draft.attention, weights: { ...draft.attention.weights, [row.id]: values.map((value) => value / total) } } }, row.id);
-                return (
-                  <tr key={row.id}>
-                    <td><input type="checkbox" checked={draft.attention.keywordTokenIds.includes(row.id)} onChange={() => toggleKeyword(row.id)} aria-label={`${row.text} 是關鍵字`} /></td>
-                    <th scope="row">{row.text}</th>
-                    {values.map((value, index) => (
-                      <td key={index}><input type="number" min={0} max={100} step={1} value={Math.round((value / total) * 100)} onChange={(event) => setWeight(row.id, index, Number(event.target.value))} aria-label={`${row.text} 看 ${tokens[index]?.text}`} /></td>
-                    ))}
-                    <td className="admin-muted">{top ? `${top.text} ${Math.round(top.weight * 100)}%` : ""}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <button type="button" onClick={() => setDraft({ ...draft, attention: { ...defaultAttention(tokens, draft.attention.keywordTokenIds), notes: draft.attention.notes } })}>依關鍵字重算預設權重</button>
-        {draft.attention.keywordTokenIds.map((id) => {
-          const token = tokens.find((item) => item.id === id);
+        <h2><span>站 3</span>接龍轉盤：每一輪的候選詞和機率</h2>
+        <p className="admin-hint">第 1 輪抽答案的第 1 個詞，以此類推；黃底那一格是答案真正的下一個詞，不能刪。機率存檔時會自動調成加起來 100%。「因為注意到」會讓問題裡那個字發光，說明機率從哪來。</p>
+        <label className="admin-inline">轉幾輪
+          <select value={draft.prediction.rounds.length} onChange={(event) => setRoundCount(Number(event.target.value))}>
+            {Array.from({ length: Math.min(6, draft.answer.tokens.length) }, (_, index) => <option key={index} value={index + 1}>{index + 1} 輪</option>)}
+          </select>
+        </label>
+        {draft.prediction.rounds.map((round, roundIndex) => {
+          const total = round.candidates.reduce((sum, candidate) => sum + candidate.probability, 0) || 1;
           return (
-            <label key={id} className="admin-field">「{token?.text}」的白話解釋（可留空）
-              <input value={draft.attention.notes?.[id] ?? ""} onChange={(event) => setDraft({ ...draft, attention: { ...draft.attention, notes: { ...draft.attention.notes, [id]: event.target.value } } })} />
-            </label>
+            <div key={roundIndex} className="admin-round">
+              <h3>第 {roundIndex + 1} 輪：答案接「{draft.answer.tokens.slice(0, roundIndex).join("")}<b>{draft.answer.tokens[roundIndex]}</b>」</h3>
+              <table className="admin-table">
+                <thead><tr><th>候選詞</th><th>機率 %</th><th>因為注意到</th><th /></tr></thead>
+                <tbody>
+                  {round.candidates.map((candidate, candidateIndex) => {
+                    const isAnswer = candidate.text === draft.answer.tokens[roundIndex];
+                    return (
+                      <tr key={candidateIndex} className={isAnswer ? "is-answer" : ""}>
+                        <td>{isAnswer ? <b>{candidate.text}</b> : <input value={candidate.text} onChange={(event) => updateCandidate(roundIndex, candidateIndex, { text: event.target.value })} aria-label={`第 ${roundIndex + 1} 輪候選詞`} />}</td>
+                        <td><input type="number" min={1} max={100} value={Math.round((candidate.probability / total) * 100)} onChange={(event) => updateCandidate(roundIndex, candidateIndex, { probability: Math.max(0.001, Number(event.target.value) / 100) })} aria-label={`${candidate.text} 的機率`} /></td>
+                        <td>
+                          <select value={candidate.because ?? ""} onChange={(event) => updateCandidate(roundIndex, candidateIndex, { because: event.target.value || undefined })} aria-label={`${candidate.text} 因為注意到`}>
+                            <option value="">（不標示）</option>
+                            {[...new Set(tokens.filter((token) => isContent(token.text)).map((token) => token.text.trim()))].map((text) => <option key={text} value={text}>{text}</option>)}
+                          </select>
+                        </td>
+                        <td>{!isAnswer && round.candidates.length > 2 && <button type="button" onClick={() => setRounds(draft.prediction.rounds.map((item, r) => (r === roundIndex ? { candidates: item.candidates.filter((_, c) => c !== candidateIndex) } : item)))}>刪除</button>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {round.candidates.length < 6 && <button type="button" onClick={() => setRounds(draft.prediction.rounds.map((item, r) => (r === roundIndex ? { candidates: [...item.candidates, { text: `候選${item.candidates.length + 1}`, probability: 0.05 }] } : item)))}>新增候選詞</button>}
+            </div>
           );
         })}
       </section>
 
       <section className="admin-card">
         <h2><span>站 4・5</span>生成與輸出</h2>
-        <p className="admin-hint">觀眾要壓 {draft.answer.tokens.length} 次泵。發亮的是站 2 線索字（觀眾全部鎖定時）。</p>
+        <p className="admin-hint">站 3 抽出前 {draft.prediction.rounds.length} 個詞，觀眾要再壓 {draft.answer.tokens.length - draft.prediction.rounds.length} 次泵。發亮的是站 2 線索字（觀眾全部鎖定時）。</p>
         <p className="admin-answer">
           {draft.answer.tokens.map((piece, index) => <span key={index} className={hits.some((hit) => piece.includes(hit.word)) ? "is-hit" : ""}>{piece}</span>)}
         </p>

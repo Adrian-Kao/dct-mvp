@@ -31,3 +31,8 @@ html.admin-page, html.admin-page body, html.admin-page #root { height: auto; min
 .admin-answer { display: flex; flex-wrap: wrap; gap: 4px; font-size: 18px; }
 .admin-answer span { padding: 2px 4px; border: 1px dashed rgba(165,178,194,.3); border-radius: 6px; white-space: pre; }
 .admin-answer span.is-hit { border-color: var(--choice); color: var(--choice); background: rgba(var(--choice-rgb),.12); }
+.admin-round { margin: 14px 0; padding: 12px 14px; border: 1px solid rgba(165,178,194,.15); border-radius: 12px; }
+.admin-round h3 { margin: 0 0 8px; font-size: 15px; font-weight: 500; color: var(--muted); }
+.admin-round h3 b { color: var(--choice); }
+.admin-round tr.is-answer td { background: rgba(var(--choice-rgb),.1); }
+.admin-round input[type="number"] { width: 80px !important; }

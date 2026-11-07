@@ -105,38 +105,8 @@
 .vector-shell .scene-heading { max-width: 550px; }
 
 /* Attention · station 3 dial */
-.attention-shell { display: grid; grid-template-rows: auto minmax(150px, 1fr) auto auto; row-gap: 6px; }
-.attention-shell .scene-heading { max-width: 720px; }
-.attention-shell .scene-heading h1 { font-size: clamp(26px, 3.3vw, 46px); }
-.attention-row { position: relative; align-self: end; width: min(960px, 100%); margin: 0 auto; padding-top: clamp(70px, 12vh, 120px); }
-.attention-arcs { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.attention-arc { fill: none; stroke: var(--signal); stroke-linecap: round; transition: stroke-width .25s ease, opacity .25s ease; filter: drop-shadow(0 0 4px rgba(var(--signal-rgb),.45)); }
-.attention-arc.is-strongest { stroke: var(--choice); opacity: 1; filter: drop-shadow(0 0 8px rgba(var(--choice-rgb),.6)); }
-.attention-tokens { position: relative; display: flex; justify-content: center; gap: clamp(6px, 1.2vw, 16px); flex-wrap: wrap; }
-.attention-token { display: grid; justify-items: center; gap: 3px; min-width: clamp(64px, 8vw, 104px); padding: 10px 12px 8px; border: 2px solid rgba(142,234,255,.18); border-radius: 12px; background: rgba(10,16,25,.88); cursor: pointer; transform: scale(calc(.92 + var(--token-weight, 0) * .5)); transition: transform .25s ease, border-color .2s ease; }
-.attention-token span { font: 500 clamp(17px, 1.8vw, 24px)/1.1 Georgia, "Times New Roman", serif; }
-.attention-token small { color: var(--muted); font-size: 10px; letter-spacing: .06em; }
-.attention-token.is-keyword { border-style: dashed; }
-.attention-token.is-visited.is-keyword { border-style: solid; border-color: rgba(var(--choice-rgb),.55); }
-.attention-token.is-focus { border-color: var(--signal); color: var(--signal); box-shadow: 0 0 26px rgba(var(--signal-rgb),.22); }
-.attention-console { position: relative; z-index: 6; display: flex; align-items: center; justify-content: center; gap: clamp(12px, 3vw, 40px); }
-.attention-dial { position: relative; width: clamp(190px, 30vh, 280px); aspect-ratio: 1; margin: 0; }
-.attention-dial svg { width: 100%; height: 100%; overflow: visible; }
-.dial-sector path { fill: rgba(var(--signal-rgb),.1); stroke: var(--bg); stroke-width: 2; transition: fill .2s ease; }
-.dial-sector:nth-child(even) path { fill: rgba(var(--signal-rgb),.18); }
-.dial-sector.is-focus path { fill: rgba(var(--choice-rgb),.42); }
-.dial-sector text { fill: var(--text); font-size: 12px; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
-.dial-needle { transform-origin: 140px 140px; transition: transform .3s cubic-bezier(.3,1.4,.5,1); }
-.dial-needle line { stroke: var(--choice); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 5px rgba(var(--choice-rgb),.7)); }
-.dial-needle circle { fill: var(--choice); }
-.attention-dial figcaption { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; pointer-events: none; }
-.attention-dial figcaption strong { font: 500 18px/1.1 Georgia, "Times New Roman", serif; color: var(--choice); }
-.attention-dial figcaption span { color: var(--muted); font-size: 9px; letter-spacing: .08em; }
 .dial-step { width: 54px; height: 54px; border: 1px solid rgba(var(--signal-rgb),.35); border-radius: 50%; background: rgba(10,16,25,.85); color: var(--signal); font-size: 16px; cursor: pointer; }
 .dial-step:disabled { opacity: .35; cursor: default; }
-.attention-bottom { position: relative; z-index: 8; display: grid; justify-items: center; gap: 6px; padding-bottom: 60px; }
-.attention-bottom > .scene-controls { bottom: 0; }
-.stage:is([data-transition-phase="compacting"], [data-transition-phase="converging"], [data-transition-phase="coreReady"], [data-transition-phase="exiting"]) :is(.attention-arcs, .attention-console, .attention-readout, .discovery-bag, .attention-guide) { opacity: 0; transition: opacity .28s ease; }
 
 .typing-caret { display: inline-block; width: 2px; height: .9em; margin-left: 4px; background: var(--choice); box-shadow: 0 0 9px var(--choice); animation: caret 1s steps(1) infinite; }
 @keyframes caret { 50% { opacity: 0; } }
@@ -237,7 +207,6 @@
   .scene-heading h1 { font-size: clamp(25px, 4vw, 42px); }
   .scene-description { margin-top: 7px; font-size: 12px; }
   .scene-controls { left: 28px; right: 28px; bottom: 14px; }
-  .attention-bottom { padding-bottom: 52px; }
   .pump-button { width: 78px; height: 78px; }
   .receipt { margin-top: 12px; }
 }
@@ -246,7 +215,6 @@
   .brand-block span:last-child { display: none; }
   .header-actions button { padding: 7px 9px; font-size: 10px; }
   .token-row { flex-wrap: wrap; }
-  .attention-token { min-width: 56px; padding: 7px 8px 6px; }
   .generation-controls { flex-direction: column; gap: 8px; }
   .scene-controls { align-items: flex-end; }
   .scene-controls > span { max-width: 50%; }
@@ -420,10 +388,38 @@ mark.clue-word { padding: 0 2px; border-radius: 4px; background: rgba(var(--choi
 .answer-new-token.is-clue { background: rgba(var(--choice-rgb),.35); color: #fff; }
 .clue-toast { margin: 8px 0 0; text-align: center; color: var(--choice); font-size: 15px; animation: number-rise .5s ease-out both; }
 .answer-card p.clue-legend { margin: 18px 0 0; color: var(--muted); font: 400 15px/1.7 system-ui, sans-serif; }
-.attention-row .attention-guide { top: 0; }
-.attention-readout { position: relative; z-index: 7; display: grid; justify-items: center; gap: 4px; margin: 4px auto 0; text-align: center; color: var(--muted); font-size: clamp(16px, 1.5vw, 20px); }
-.attention-readout b { color: var(--text); font-weight: 650; }
-.attention-readout em { margin-left: 6px; color: var(--choice); font-style: normal; font-weight: 700; }
-.attention-readout.is-keyword b { color: var(--choice); }
-.attention-readout small { color: var(--choice); font-size: 15px; animation: number-rise .45s ease-out both; }
-.discovery-bag li.is-pending { color: #6f7f90; }
+
+/* ---------- station 3 · probability wheel ---------- */
+.prediction-shell { display: grid; grid-template-rows: auto auto 1fr auto; row-gap: 8px; }
+.prediction-context { display: grid; gap: 6px; pointer-events: auto; }
+.prediction-question { margin: 0; font-size: clamp(18px, 1.7vw, 24px); color: var(--muted); }
+.prediction-question span { padding: 1px 2px; border-radius: 6px; transition: background .3s ease, color .3s ease, box-shadow .3s ease; }
+.prediction-question span.is-attended { color: var(--text); background: rgba(var(--choice-rgb), calc(var(--glow) * .55)); box-shadow: 0 0 calc(var(--glow) * 30px) rgba(var(--choice-rgb), .45); }
+.prediction-answer { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px; min-height: 44px; margin: 0; font-size: clamp(26px, 2.8vw, 40px); }
+.prediction-answer small { margin-right: 8px; color: var(--muted); font-size: 14px; }
+.prediction-answer span.is-new { color: var(--choice); animation: number-rise .5s ease-out both; }
+.prediction-stage { display: flex; align-items: center; justify-content: center; gap: clamp(20px, 4vw, 60px); min-height: 0; pointer-events: auto; }
+.prediction-wheel { width: clamp(220px, 40vh, 320px); aspect-ratio: 1; margin: 0; }
+.prediction-wheel svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 18px 40px rgba(0,0,0,.5)); }
+.wheel-rotor { transform-origin: 150px 150px; transition-property: transform; transition-timing-function: cubic-bezier(.12,.7,.15,1); }
+.wheel-slice path { stroke: var(--bg); stroke-width: 2; }
+.wheel-slice text { fill: #fff; font-size: 15px; font-weight: 650; text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: rgba(8,11,18,.55); stroke-width: 3px; }
+.wheel-slice .wheel-pct { font-size: 11px; font-weight: 500; }
+.wheel-hub { fill: var(--surface-strong); stroke: rgba(var(--signal-rgb),.5); stroke-width: 2; }
+.wheel-pointer { fill: var(--choice); filter: drop-shadow(0 0 8px rgba(var(--choice-rgb),.8)); }
+.prediction-side { display: grid; gap: 14px; justify-items: start; }
+.prediction-candidates { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.prediction-candidates li { display: grid; grid-template-columns: 12px 64px 120px 44px auto; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 10px; font-size: 15px; }
+.prediction-candidates li i { width: 12px; height: 12px; border-radius: 3px; }
+.prediction-candidates li b { color: var(--text); font-variant-numeric: tabular-nums; }
+.prediction-candidates li small { color: var(--choice); font-size: 12px; }
+.prediction-candidates li.is-kept { background: rgba(var(--choice-rgb),.16); outline: 1px solid var(--choice); }
+.prediction-candidates li.is-miss { background: rgba(255,120,90,.14); outline: 1px solid rgba(255,120,90,.6); }
+.candidate-bar { height: 8px; border-radius: 8px; background: rgba(165,178,194,.15); overflow: hidden; }
+.candidate-bar span { display: block; height: 100%; background: var(--signal); }
+.spin-button { min-width: 140px; height: 58px; border: 2px solid var(--choice); border-radius: 999px; background: rgba(var(--choice-rgb),.14); color: var(--choice); font-size: 20px; font-weight: 700; letter-spacing: .1em; cursor: pointer; box-shadow: 0 0 30px rgba(var(--choice-rgb),.25); }
+.spin-button:disabled { opacity: .4; cursor: default; }
+.prediction-bottom { position: relative; display: grid; justify-items: center; padding-bottom: 60px; }
+.prediction-bottom > .scene-controls { bottom: 0; }
+.prediction-bottom .interaction-hint { max-width: 760px; margin: 0; text-align: center; font-size: 16px; }
+.prediction-bottom .interaction-hint.is-miss { color: #ffb4a0; }

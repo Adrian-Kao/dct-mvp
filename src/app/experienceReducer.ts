@@ -1,4 +1,3 @@
-import { keywordsComplete } from "../data/attention";
 import { buildDefaultAvatar, type Avatar } from "../data/avatar";
 import { isAligned, nextLockTarget } from "../data/vectorSpace";
 import type { ScenarioFixture } from "../data/scenarioTypes";
@@ -24,10 +23,11 @@ export interface ExperienceState {
     angle: number;
     lockedTokenIds: string[];
   };
-  /** Station 3: the dial pointer and which tokens it has rested on. */
-  attention: {
-    focusIndex: number;
-    visitedTokenIds: string[];
+  /** Station 3: the probability wheel. One round per predicted word; a miss means "spin again". */
+  prediction: {
+    round: number;
+    picks: PredictionPick[];
+    missesThisRound: number;
     complete: boolean;
     source: InputSource;
   };
@@ -45,14 +45,23 @@ export interface ExperienceState {
   };
 }
 
+export interface PredictionPick {
+  round: number;
+  text: string;
+  probability: number;
+  /** True when the drawn word is the one this exhibition's answer continues with. */
+  kept: boolean;
+  /** True when the pick was "take the most likely word" instead of a random spin. */
+  greedy: boolean;
+}
+
 export type GuardMeta = { runId: number; sceneInstanceId: number };
 
 export type ExperienceAction =
   | { type: "AVATAR_SET"; avatar: Avatar }
   | { type: "VECTOR_ROTATE"; delta: number }
   | { type: "VECTOR_LOCK"; scenario: ScenarioFixture }
-  | { type: "ATTENTION_ROTATE"; delta: 1 | -1; scenario: ScenarioFixture }
-  | { type: "ATTENTION_FOCUS"; tokenId: string; scenario: ScenarioFixture }
+  | { type: "PREDICTION_PICK"; scenario: ScenarioFixture; candidateIndex: number; greedy: boolean }
   | { type: "GENERATION_PUMP"; scenario: ScenarioFixture; meta: GuardMeta }
   | { type: "GENERATION_BUBBLE_POP"; index: number; scenario: ScenarioFixture; meta: GuardMeta }
   | { type: "REQUEST_TRANSITION"; target: SceneId }
@@ -67,20 +76,23 @@ export type ExperienceAction =
   | { type: "SET_REDUCED_MOTION"; reducedMotion: boolean }
   | { type: "TOGGLE_PRESENTER"; open?: boolean };
 
-/**
- * The pointer starts on the first word that is not a keyword (會 in the default question),
- * so every discovery needs a real turn of the dial. Set once per scenario by the provider.
- */
-let attentionStartIndex = 2;
+/** How many answer words station 3 draws; station 4's pump starts after them. Set once per scenario. */
+let predictedCount = 3;
 
 export function configureForScenario(scenario: ScenarioFixture): void {
-  const keywordTexts = new Set(scenario.attention.keywordTokenIds.map((id) => scenario.inputTokens.find((token) => token.id === id)?.text));
-  const index = scenario.inputTokens.findIndex((token) => !keywordTexts.has(token.text));
-  attentionStartIndex = Math.max(0, index);
+  predictedCount = scenario.prediction.rounds.length;
 }
 
-function emptyAttention(source: InputSource = "user"): ExperienceState["attention"] {
-  return { focusIndex: attentionStartIndex, visitedTokenIds: [], complete: false, source };
+function emptyPrediction(source: InputSource = "user"): ExperienceState["prediction"] {
+  return { round: 0, picks: [], missesThisRound: 0, complete: false, source };
+}
+
+function completePrediction(scenario: ScenarioFixture, source: InputSource): ExperienceState["prediction"] {
+  const picks = scenario.prediction.rounds.map((round, index) => {
+    const candidate = round.candidates.find((item) => item.text === scenario.answer.tokens[index])!;
+    return { round: index, text: candidate.text, probability: candidate.probability, kept: true, greedy: false };
+  });
+  return { round: picks.length, picks, missesThisRound: 0, complete: true, source };
 }
 
 export const VECTOR_START_ANGLE = -0.5;
@@ -93,30 +105,14 @@ function completeVector(scenario: ScenarioFixture): ExperienceState["vector"] {
   return { angle: 0, lockedTokenIds: scenario.vectorSpace.lockOrder.slice(0, Math.min(3, scenario.vectorSpace.maxLocks)) };
 }
 
+/** Station 4 starts with the words already drawn in station 3 on the answer line. */
 function emptyGeneration(): ExperienceState["generation"] {
-  return { pumpCount: 0, releasedCount: 0, appendedCount: 0, complete: false };
-}
-
-function completeAttention(scenario: ScenarioFixture, source: InputSource): ExperienceState["attention"] {
-  const ids = scenario.inputTokens.map((token) => token.id);
-  const focusIndex = Math.max(0, ids.indexOf(scenario.attention.keywordTokenIds.at(-1) ?? ids[0]));
-  return { focusIndex, visitedTokenIds: [...scenario.attention.keywordTokenIds], complete: true, source };
+  return { pumpCount: 0, releasedCount: predictedCount, appendedCount: predictedCount, complete: false };
 }
 
 function completeGeneration(scenario: ScenarioFixture): ExperienceState["generation"] {
   const total = scenario.answer.tokens.length;
   return { pumpCount: total, releasedCount: total, appendedCount: total, complete: true };
-}
-
-function focusToken(state: ExperienceState, scenario: ScenarioFixture, focusIndex: number): ExperienceState {
-  const token = scenario.inputTokens[focusIndex];
-  if (!token) return state;
-  // A token counts as visited when the pointer lands on it (that is when its discovery is shown).
-  const visitedTokenIds = state.attention.visitedTokenIds.includes(token.id) ? state.attention.visitedTokenIds : [...state.attention.visitedTokenIds, token.id];
-  return {
-    ...state,
-    attention: { ...state.attention, focusIndex, visitedTokenIds, complete: keywordsComplete(scenario, visitedTokenIds), source: "user" },
-  };
 }
 
 export function createInitialState(scenarioId: string, reducedMotion = false): ExperienceState {
@@ -132,7 +128,7 @@ export function createInitialState(scenarioId: string, reducedMotion = false): E
     transitionVisualPhase: "blackHold",
     avatar: null,
     vector: emptyVector(),
-    attention: emptyAttention(),
+    prediction: emptyPrediction(),
     generation: emptyGeneration(),
     settings: { quality: "medium", reducedMotion, presenterOpen: false },
   };
@@ -157,16 +153,25 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       if (!target || !position || !isAligned(position, state.vector.angle)) return state;
       return { ...state, vector: { ...state.vector, lockedTokenIds: [...state.vector.lockedTokenIds, target] } };
     }
-    case "ATTENTION_ROTATE": { // One detent of the station 3 dial.
-      if (state.scene !== "attention" || state.scenePhase !== "ready") return state;
-      const count = action.scenario.inputTokens.length;
-      return focusToken(state, action.scenario, (state.attention.focusIndex + action.delta + count) % count);
-    }
-    case "ATTENTION_FOCUS": { // Touch / mouse fallback for the dial.
-      if (state.scene !== "attention" || state.scenePhase !== "ready") return state;
-      const index = action.scenario.inputTokens.findIndex((token) => token.id === action.tokenId);
-      if (index < 0) return state;
-      return focusToken(state, action.scenario, index);
+    case "PREDICTION_PICK": { // The wheel stopped on a candidate (the scene draws it; the reducer records it).
+      if (state.scene !== "attention" || state.scenePhase !== "ready" || state.prediction.complete) return state;
+      const round = action.scenario.prediction.rounds[state.prediction.round];
+      const candidate = round?.candidates[action.candidateIndex];
+      if (!round || !candidate) return state;
+      const kept = candidate.text === action.scenario.answer.tokens[state.prediction.round];
+      const pick = { round: state.prediction.round, text: candidate.text, probability: candidate.probability, kept, greedy: action.greedy };
+      const nextRound = kept ? state.prediction.round + 1 : state.prediction.round;
+      return {
+        ...state,
+        prediction: {
+          ...state.prediction,
+          round: nextRound,
+          picks: [...state.prediction.picks, pick],
+          missesThisRound: kept ? 0 : state.prediction.missesThisRound + 1,
+          complete: nextRound >= action.scenario.prediction.rounds.length,
+          source: "user",
+        },
+      };
     }
     case "GENERATION_PUMP": { // One press of the station 4 pump releases one bubble.
       if (!validMeta(state, action.meta) || state.scene !== "generation" || state.scenePhase !== "ready" || state.generation.complete) return state;
@@ -215,7 +220,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
       return { ...fresh, runId, sceneInstanceId, transitionId: runId * 1000 + sceneInstanceId, settings: { ...state.settings, presenterOpen: false } };
     }
     case "LOAD_PRESENTER_FIXTURE": {
-      const needsAttention = ["generation", "output", "summary"].includes(action.scene);
+      const needsPrediction = ["generation", "output", "summary"].includes(action.scene);
       const needsAnswer = action.scene === "output" || action.scene === "summary";
       return {
         ...state,
@@ -229,7 +234,7 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
         transitionVisualPhase: "blackHold",
         avatar: action.scene === "input" ? null : (state.avatar ?? buildDefaultAvatar()),
         vector: action.scene === "vector" || action.scene === "input" || action.scene === "tokenization" ? emptyVector() : completeVector(action.scenario),
-        attention: needsAttention ? completeAttention(action.scenario, "presenter") : emptyAttention("presenter"),
+        prediction: needsPrediction ? completePrediction(action.scenario, "presenter") : emptyPrediction("presenter"),
         generation: needsAnswer ? completeGeneration(action.scenario) : emptyGeneration(),
         settings: { ...state.settings, presenterOpen: false },
       };
@@ -237,11 +242,11 @@ export function experienceReducer(state: ExperienceState, action: ExperienceActi
     case "REPLAY_SCENE": {
       const vector = state.scene === "vector" ? emptyVector() : state.vector;
       const avatar = state.scene === "input" ? null : state.avatar;
-      const attention = state.scene === "attention" ? emptyAttention(state.attention.source) : state.attention;
+      const prediction = state.scene === "attention" ? emptyPrediction(state.prediction.source) : state.prediction;
       const generation = state.scene === "generation" ? emptyGeneration() : state.generation;
       const runId = state.runId + 1;
       const sceneInstanceId = state.sceneInstanceId + 1;
-      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", avatar, vector, attention, generation, settings: { ...state.settings, presenterOpen: false } };
+      return { ...state, runId, sceneInstanceId, scenePhase: "entering", transitionId: runId * 1000 + sceneInstanceId, transitionTarget: state.scene, transitionMode: "entry", transitionVisualPhase: "blackHold", avatar, vector, prediction, generation, settings: { ...state.settings, presenterOpen: false } };
     }
     case "SET_QUALITY":
       return { ...state, settings: { ...state.settings, quality: action.quality } };

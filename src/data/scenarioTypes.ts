@@ -37,6 +37,19 @@ export interface AttentionFixture {
   notes?: Record<string, string>;
 }
 
+/** Station 3: one candidate for "the next word", with its (illustrative) probability. */
+export interface PredictionCandidate {
+  text: string;
+  probability: number;
+  /** The question word whose attention made this candidate likely, e.g. 想念. */
+  because?: string;
+}
+
+export interface PredictionFixture {
+  /** Round i predicts answer.tokens[i]; that token must be one of the round's candidates. */
+  rounds: Array<{ candidates: PredictionCandidate[] }>;
+}
+
 export interface AnswerFixture {
   id: string;
   /** Illustrative answer tokens, released one per pump. Joined they form the full answer. */
@@ -51,12 +64,9 @@ export interface ScenarioFixture {
   probabilitiesAreIllustrative: boolean;
   inputTokens: InputToken[];
   vectorSpace: VectorSpaceFixture;
-  attention: AttentionFixture;
+  /** Legacy attention table (no longer shown; kept so older JSON files still load). */
+  attention?: AttentionFixture;
+  prediction: PredictionFixture;
   answer: AnswerFixture;
 }
 
-export interface AttentionLink {
-  fromId: string;
-  toId: string;
-  weight: number;
-}

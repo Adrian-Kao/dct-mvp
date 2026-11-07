@@ -42,37 +42,3 @@ test("2D Tokenization removes the source sentence and performs black-center-scat
   await waitPhase(page, "idle");
   await page.screenshot({ path: `${evidence}/2d-token-09-vector-ready.png`, animations: "allow" });
 });
-
-test("Attention dial arcs stay anchored on the token chips after responsive resize", async ({ page }) => {
-  await page.goto("/?renderer=2d");
-  await page.waitForFunction(() => document.activeElement?.tagName === "H1");
-  await openScene(page, "attention");
-  await waitPhase(page, "idle");
-  const sizes = [
-    { width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1440, height: 900 },
-    { width: 1920, height: 1080 },
-  ];
-  for (const size of sizes) {
-    await page.setViewportSize(size);
-    await page.waitForTimeout(160);
-    const errors = await page.evaluate(() => {
-      const row = document.querySelector<HTMLElement>(".attention-row");
-      if (!row) return [999];
-      const rowRect = row.getBoundingClientRect();
-      return Array.from(document.querySelectorAll<SVGPathElement>("[data-attention-link]")).map((path) => {
-        const [fromId, toId] = (path.dataset.attentionLink ?? "").split("-");
-        const match = /M ([\d.]+) ([\d.]+) Q [\d.-]+ [\d.-]+ ([\d.]+) ([\d.]+)/u.exec(path.getAttribute("d") ?? "");
-        const from = document.querySelector<HTMLElement>(`[data-transition-id='attention-${fromId}']`)?.getBoundingClientRect();
-        const to = document.querySelector<HTMLElement>(`[data-transition-id='attention-${toId}']`)?.getBoundingClientRect();
-        if (!match || !from || !to) return 999;
-        const [, x1, y1, x2, y2] = match.map(Number);
-        return Math.max(
-          Math.hypot(x1 - (from.left + from.width / 2 - rowRect.left), y1 - (from.top - rowRect.top)),
-          Math.hypot(x2 - (to.left + to.width / 2 - rowRect.left), y2 - (to.top - rowRect.top)),
-        );
-      });
-    });
-    expect(errors.length, `${size.width}x${size.height} arc count`).toBe(6);
-    expect(Math.max(...errors), `${size.width}x${size.height}: ${errors.join(",")}`).toBeLessThanOrEqual(3);
-  }
-});

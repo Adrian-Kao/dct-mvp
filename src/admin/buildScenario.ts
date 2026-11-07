@@ -111,18 +111,43 @@ export function neighborsOf(scenario: ScenarioFixture): Record<string, string[]>
   return Object.fromEntries(scenario.vectorSpace.lockOrder.map((id) => [id, nearestWords(scenario, id).map((word) => word.text)]));
 }
 
-/** Illustrative attention: content words and keywords draw more, neighbours a little, punctuation little. */
-export function defaultAttention(tokens: InputToken[], keywordTokenIds: string[]): ScenarioFixture["attention"] {
-  const keywordTexts = new Set(keywordTokenIds.map((id) => tokens.find((token) => token.id === id)?.text));
-  const weights: Record<string, number[]> = {};
-  tokens.forEach((query, i) => {
-    const scores = tokens.map((key, j) => {
-      if (!isContent(key.text)) return 0.25;
-      return 0.6 + (keywordTexts.has(key.text) && key.text !== query.text ? 1.6 : 0) + (Math.abs(i - j) === 1 ? 0.5 : 0) + (i === j ? 0.7 : 0) + Math.min(0.6, key.text.trim().length * 0.15);
-    });
-    weights[query.id] = normalizeRow(scores);
+/**
+ * Station 3 defaults: round i predicts answer word i. The real next word gets the biggest slice;
+ * alternatives come from the clue words, other answer words and filler words.
+ */
+export function defaultPrediction(tokens: InputToken[], answerPieces: string[], lockOrder: string[], neighbors: Record<string, string[]>, seed: number, roundCount = 3): ScenarioFixture["prediction"] {
+  const random = mulberry32(seed ^ 0x5bd1e995);
+  const lockTexts = lockOrder.map((id) => tokens.find((token) => token.id === id)?.text.trim() ?? "");
+  const questionTexts = new Set(tokens.map((token) => token.text.trim()));
+  const pool = [...new Set([...Object.values(neighbors).flat(), ...answerPieces.map((piece) => piece.trim()).filter(isContent), ...FILLER_WORDS])];
+  const rounds = answerPieces.slice(0, Math.max(1, Math.min(roundCount, answerPieces.length))).map((answerWord, index) => {
+    const alternatives: string[] = [];
+    let attempts = 0;
+    while (alternatives.length < 3 && attempts < 200) {
+      attempts += 1;
+      const word = pool[Math.floor(random() * Math.min(pool.length, 24 + attempts))];
+      if (word && word !== answerWord && !alternatives.includes(word)) alternatives.push(word);
+    }
+    const because = questionTexts.has(answerWord.trim()) ? answerWord.trim() : lockTexts[index % Math.max(1, lockTexts.length)];
+    return {
+      candidates: normalizeCandidates([
+        { text: answerWord, probability: 0.55, because: because || undefined },
+        { text: alternatives[0], probability: 0.2, because: lockTexts[(index + 1) % Math.max(1, lockTexts.length)] || undefined },
+        { text: alternatives[1], probability: 0.15 },
+        { text: alternatives[2], probability: 0.1 },
+      ]),
+    };
   });
-  return { keywordTokenIds, weights, notes: {} };
+  return { rounds };
+}
+
+export function normalizeCandidates(candidates: ScenarioFixture["prediction"]["rounds"][number]["candidates"]) {
+  const probabilities = normalizeRow(candidates.map((candidate) => candidate.probability));
+  return candidates.map((candidate, index) => {
+    const next = { text: candidate.text, probability: probabilities[index] } as typeof candidate;
+    if (candidate.because) next.because = candidate.because;
+    return next;
+  });
 }
 
 export function normalizeRow(values: number[]): number[] {
@@ -148,8 +173,9 @@ export function draftScenario(input: DraftInput, tokenizer: Pick<Tokenizer, "idF
   const seed = hashSeed(input.question + input.answer);
   const inputTokens = makeInputTokens(input.questionPieces, tokenizer);
   const lockOrder = defaultLockOrder(inputTokens);
-  const vectorSpace = layoutVectorSpace(inputTokens, lockOrder, defaultNeighbors(inputTokens, lockOrder, input.answerPieces), seed);
-  const attention = defaultAttention(inputTokens, lockOrder.slice(0, 3));
+  const neighbors = defaultNeighbors(inputTokens, lockOrder, input.answerPieces);
+  const vectorSpace = layoutVectorSpace(inputTokens, lockOrder, neighbors, seed);
+  const prediction = defaultPrediction(inputTokens, input.answerPieces, lockOrder, neighbors, seed);
   return {
     id: `custom-${seed.toString(36)}`,
     question: input.question,
@@ -158,7 +184,7 @@ export function draftScenario(input: DraftInput, tokenizer: Pick<Tokenizer, "idF
     probabilitiesAreIllustrative: true,
     inputTokens,
     vectorSpace,
-    attention,
+    prediction,
     answer: { id: `custom-answer-${seed.toString(36)}`, tokens: input.answerPieces },
   };
 }

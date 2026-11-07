@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import rawScenario from "../data/scenario.json";
 import { validateScenario } from "../data/validateScenario";
 import { createInitialState, experienceReducer, type ExperienceState } from "../app/experienceReducer";
-import { selectAnswer, selectStrongestLinks, selectVisibleAnswer } from "../app/selectors";
+import { selectAnswer, selectVisibleAnswer } from "../app/selectors";
 import { isAligned, nearestWords } from "../data/vectorSpace";
 
 const scenario = validateScenario(rawScenario);
@@ -50,34 +50,26 @@ describe("station 2 star field", () => {
   });
 });
 
-describe("station 3 attention dial", () => {
-  it("moves one detent per rotation, wraps around, and records visited tokens", () => {
+describe("station 3 probability wheel", () => {
+  const indexOf = (round: number, text: string) => scenario.prediction.rounds[round].candidates.findIndex((candidate) => candidate.text === text);
+
+  it("keeps a drawn word only when it is the answer's next word; a miss means spin again", () => {
     let state = sceneState("attention");
-    expect(state.attention.focusIndex).toBe(2); // starts on 會, not a keyword
-    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
-    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
-    state = experienceReducer(state, { type: "ATTENTION_ROTATE", delta: -1, scenario });
-    expect(state.attention.focusIndex).toBe(scenario.inputTokens.length - 1);
-    expect(state.attention.visitedTokenIds).toEqual(["t02", "t01", "t07"]);
-    expect(state.attention.complete).toBe(false);
+    expect(state.prediction).toMatchObject({ round: 0, complete: false });
+    state = experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex: indexOf(0, "因為"), greedy: false });
+    expect(state.prediction).toMatchObject({ round: 0, missesThisRound: 1 });
+    expect(state.prediction.picks[0]).toMatchObject({ text: "因為", kept: false });
+    state = experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex: indexOf(0, "想念"), greedy: true });
+    expect(state.prediction).toMatchObject({ round: 1, missesThisRound: 0 });
+    state = experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex: indexOf(1, "一個"), greedy: false });
+    state = experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex: indexOf(2, "人"), greedy: false });
+    expect(state.prediction.complete).toBe(true);
+    expect(experienceReducer(state, { type: "PREDICTION_PICK", scenario, candidateIndex: 0, greedy: false })).toBe(state);
   });
 
-  it("completes only after every keyword has been visited, then keeps the three strongest links", () => {
-    let state = sceneState("attention");
-    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t01", scenario });
-    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t04", scenario });
-    expect(state.attention.complete).toBe(false);
-    // Either 人 counts: the two tokens are the same word.
-    state = experienceReducer(state, { type: "ATTENTION_FOCUS", tokenId: "t02", scenario });
-    expect(state.attention.complete).toBe(true);
-    const links = selectStrongestLinks(state, scenario);
-    expect(links).toHaveLength(3);
-    expect(links[0]).toMatchObject({ fromId: "t04", toId: "t06" });
-  });
-
-  it("ignores the dial while the scene is not ready", () => {
+  it("ignores the wheel while the scene is not ready", () => {
     const entering = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "attention", scenario });
-    expect(experienceReducer(entering, { type: "ATTENTION_ROTATE", delta: 1, scenario })).toBe(entering);
+    expect(experienceReducer(entering, { type: "PREDICTION_PICK", scenario, candidateIndex: 0, greedy: false })).toBe(entering);
   });
 });
 
@@ -87,11 +79,13 @@ describe("station 4 pump generation", () => {
     const meta = metaOf(state);
     state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
     state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
-    expect(state.generation).toMatchObject({ pumpCount: 2, releasedCount: 2, appendedCount: 0 });
-    expect(selectVisibleAnswer(state, scenario)).toBe("");
-    state = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index: 0, scenario, meta });
-    expect(selectVisibleAnswer(state, scenario)).toBe(scenario.answer.tokens[0]);
-    const unreleased = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index: 5, scenario, meta });
+    // The first words were already drawn on the station 3 wheel.
+    const drawn = scenario.prediction.rounds.length;
+    expect(state.generation).toMatchObject({ pumpCount: 2, releasedCount: drawn + 2, appendedCount: drawn });
+    expect(selectVisibleAnswer(state, scenario)).toBe(scenario.answer.tokens.slice(0, drawn).join(""));
+    state = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index: drawn, scenario, meta });
+    expect(selectVisibleAnswer(state, scenario)).toBe(scenario.answer.tokens.slice(0, drawn + 1).join(""));
+    const unreleased = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index: drawn + 5, scenario, meta });
     expect(unreleased).toBe(state);
   });
 
@@ -102,7 +96,7 @@ describe("station 4 pump generation", () => {
     for (let index = 0; index < total + 3; index += 1) state = experienceReducer(state, { type: "GENERATION_PUMP", scenario, meta });
     expect(state.generation.releasedCount).toBe(total);
     expect(selectAnswer(state, scenario)).toBeNull();
-    for (let index = 0; index < total; index += 1) state = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index, scenario, meta });
+    for (let index = scenario.prediction.rounds.length; index < total; index += 1) state = experienceReducer(state, { type: "GENERATION_BUBBLE_POP", index, scenario, meta });
     expect(state.generation.complete).toBe(true);
     expect(selectAnswer(state, scenario)?.fullAnswer).toBe(scenario.answer.tokens.join(""));
   });
@@ -114,16 +108,16 @@ describe("station 4 pump generation", () => {
     const reset = experienceReducer(state, { type: "RESET_EXPERIENCE" });
     expect(reset.runId).toBe(state.runId + 1);
     expect(reset.scene).toBe("input");
-    expect(reset.generation.releasedCount).toBe(0);
-    expect(reset.attention.visitedTokenIds).toEqual([]);
+    expect(reset.generation.pumpCount).toBe(0);
+    expect(reset.prediction.picks).toEqual([]);
   });
 });
 
 describe("presenter and restart", () => {
   it("injects a complete safe path for downstream presenter jumps", () => {
     const state = experienceReducer(createInitialState(scenario.id), { type: "LOAD_PRESENTER_FIXTURE", scene: "summary", scenario });
-    expect(state.attention.complete).toBe(true);
-    expect(state.attention.source).toBe("presenter");
+    expect(state.prediction.complete).toBe(true);
+    expect(state.prediction.source).toBe("presenter");
     expect(state.generation.complete).toBe(true);
     expect(selectAnswer(state, scenario)?.answerId).toBe(scenario.answer.id);
   });

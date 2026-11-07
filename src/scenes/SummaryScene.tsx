@@ -1,13 +1,13 @@
 import { useExperience } from "../app/ExperienceProvider";
-import { selectAnswer, selectStrongestLinks } from "../app/selectors";
+import { selectAnswer } from "../app/selectors";
 import { SceneHeading } from "../components/SceneHeading";
 
 export function SummaryScene() {
   const { state, dispatch, scenario } = useExperience();
   const answer = selectAnswer(state, scenario);
   const tokenText = (id: string) => scenario.inputTokens.find((token) => token.id === id)?.text.trim() ?? id;
-  const links = selectStrongestLinks(state, scenario);
-  const presenterPath = state.attention.source === "presenter";
+  const presenterPath = state.prediction.source === "presenter";
+  const picks = state.prediction.picks;
   if (!answer) return (
     <div className="scene-shell error-shell"><h1>路徑紀錄不完整</h1><button type="button" onClick={() => dispatch({ type: "RESET_EXPERIENCE" })}>重新開始</button></div>
   );
@@ -21,8 +21,7 @@ export function SummaryScene() {
         <dl>
           <div><dt>問題</dt><dd>{scenario.question}</dd></div>
           <div><dt>站 2 鎖定的字</dt><dd>{state.vector.lockedTokenIds.length ? state.vector.lockedTokenIds.map(tokenText).join(" · ") : "未鎖定"}</dd></div>
-          <div><dt>站 3 轉盤走過</dt><dd>{state.attention.visitedTokenIds.length ? state.attention.visitedTokenIds.map(tokenText).join(" → ") : "未轉動"}</dd></div>
-          <div><dt>站 3 最強連線</dt><dd>{links.length ? links.map((link) => `${tokenText(link.fromId)}—${tokenText(link.toId)}`).join(" · ") : "無"}</dd></div>
+          <div><dt>站 3 轉盤抽到</dt><dd>{picks.length ? picks.map((pick) => `${pick.text}（${Math.round(pick.probability * 100)}%${pick.kept ? "" : "，再轉"}）`).join(" → ") : "未轉動"}</dd></div>
           <div><dt>站 4 壓泵次數</dt><dd>{state.generation.pumpCount}</dd></div>
           <div><dt>答案編號</dt><dd><code>{answer.answerId}</code></dd></div>
         </dl>

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { lockNextVectorToken, sliceSentence } from "./helpers";
+import { lockNextVectorToken, sliceSentence, spinAllRounds } from "./helpers";
 
 test("complete reduced-motion 2D flow from entrance scan to personal summary", async ({ page }) => {
   await page.goto("/?renderer=2d");
@@ -45,15 +45,13 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   await lockNextVectorToken(page);
   await page.getByRole("button", { name: "帶著星座前往站 3" }).click();
 
-  // Station 3: the arrow keys stand in for the rotary encoder.
-  await expect(page.locator(".attention-shell")).toBeVisible({ timeout: 6_000 });
-  await expect(page.locator("#stage-root")).toHaveAttribute("data-transition-phase", "idle", { timeout: 6_000 });
-  const next = page.getByRole("button", { name: "帶著重點前進" });
+  // Station 3: Space spins the probability wheel; each kept word joins the answer.
+  await expect(page.locator(".prediction-shell")).toBeVisible({ timeout: 6_000 });
+  const next = page.getByRole("button", { name: "帶著開頭前往站 4" });
   await expect(next).toBeDisabled();
-  for (let step = 0; step < 5; step += 1) await page.keyboard.press("ArrowRight");
-  await expect(page.locator(".attention-shell")).toHaveAttribute("data-attention-complete", "true");
-  await expect(page.getByRole("region", { name: "你的發現" })).toContainText("想念→人 34%");
-  await expect(page.locator(".attention-arc.is-strongest")).toHaveCount(3);
+  await expect(page.getByLabel("候選詞與機率")).toContainText("想念");
+  await spinAllRounds(page);
+  await expect(page.getByLabel("答案", { exact: true })).toContainText("想念一個人");
   await next.click();
 
   // Station 4: every pump releases one bubble; stopping stops generation.
@@ -62,10 +60,10 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   const pump = page.getByRole("button", { name: "壓一下" });
   await pump.click();
   await pump.click();
-  await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "2", { timeout: 3_000 });
+  await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "5", { timeout: 3_000 });
   await page.waitForTimeout(600);
-  await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "2");
-  await expect(page.locator(".answer-line")).toContainText("想念一個");
+  await expect(page.locator(".generation-shell")).toHaveAttribute("data-pump-appended", "5");
+  await expect(page.locator(".answer-line")).toContainText("想念一個人，是");
   await page.locator("body").click({ position: { x: 5, y: 300 } });
   for (let press = 0; press < 50; press += 1) await page.keyboard.press("Space");
 
@@ -76,5 +74,5 @@ test("complete reduced-motion 2D flow from entrance scan to personal summary", a
   await page.getByRole("button", { name: "查看這次的路徑" }).click();
   await expect(page.getByText("missing-someone-answer-v1")).toBeVisible();
   await expect(page.locator(".receipt")).toContainText("想念 · 人");
-  await expect(page.locator(".receipt")).toContainText("人—想念");
+  await expect(page.locator(".receipt")).toContainText("站 3 轉盤抽到");
 });
